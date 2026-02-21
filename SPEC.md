@@ -1,6 +1,6 @@
 # JLH Desktop — Working Specification
 
-**Version:** 0.0.3
+**Version:** 0.0.4
 **Date:** 2026-02-21
 **Status:** Draft
 
@@ -21,15 +21,87 @@
 
 ---
 
-## 2. Technology Stack
+## 2. Research Findings
+
+Prior to technical design, research was conducted into existing GitHub projects, commercial products, open source libraries, and known production patterns for Electron + AI applications. Key findings are summarised here.
+
+### 2.1 Originality Assessment
+
+The concept is **genuinely novel** as a combined product. The distinguishing three-stage loop does not exist as a cohesive, non-technical, locally-running desktop application anywhere in the market:
+
+1. **Define** — a guided AI conversation extracts what a task does and what inputs it needs, then persists this as a typed schema with a human-readable summary
+2. **Parameterise** — the saved schema is rendered as a clean, purpose-built form — no chat required, no re-explaining
+3. **Execute** — the AI executes the task using the filled-in values and real tools
+
+### 2.2 Closest Existing Products
+
+| Product | What It Shares | What It Lacks |
+|---|---|---|
+| Raycast AI PromptLab | Saved AI commands with variable placeholders | macOS only. No guided definition conversation. No tool execution. Prompts are static templates, not typed schemas. |
+| Zapier Copilot | Natural language workflow creation, saves reusable flows | Cloud/SaaS only. Requires app integrations (Slack, Gmail etc.). Not a personal local library. Cannot run free-form tasks. |
+| AnythingLLM | Desktop app, local storage, agent builder | Agent builder is node-graph-based, not conversational. No form generation from schema. Skews technical in configuration. |
+| PyGPT | Desktop, presets, plugin system, supports Claude | Presets are prompt templates, not parameterised schemas. No form generation. Task definition and execution are not separated concepts. |
+| Lindy AI | Conversational agent definition, recurring tasks | Cloud-only. No local storage. No form generation. Runs on schedules/triggers, not on-demand form execution. |
+| Flowise / LangFlow | Visual workflow builder, local, open source | Requires technical drag-and-drop node editing. Not accessible to a non-technical user. |
+
+### 2.3 Confirmed Gaps This Project Fills
+
+- **Conversationally-defined, schema-first task persistence** — no existing tool cleanly separates "define a task with AI" from "run a task with AI"
+- **AI-generated form UI as the daily interaction surface** — all AI products lead with chat; the form is the novel UX pattern here
+- **Local-first, Windows desktop, non-technical user** — no Windows desktop product targets this combination
+- **Personal library metaphor** — tasks are owned, named, reusable assets that accumulate over time; no current AI product frames itself this way
+
+### 2.4 Relevant Open Source Projects Reviewed
+
+| Project | URL | Relevance |
+|---|---|---|
+| AnythingLLM | github.com/Mintplex-Labs/anything-llm | Closest desktop AI competitor. Node.js + React. No form generation. |
+| PyGPT | github.com/szczyglis-dev/py-gpt | Feature-rich desktop AI app. Python/Qt. Useful reference for plugin architecture. |
+| electron-vite-react | github.com/electron-vite/electron-vite-react | Selected as the build scaffold. Official electron-vite React + TypeScript template. |
+| react-jsonschema-form | github.com/rjsf-team/react-jsonschema-form | Selected for form rendering layer. |
+| electron-react-boilerplate-sqlite3 | github.com/wds4/electron-react-boilerplate-sqlite3 | Reference for Electron IPC + SQLite bridge pattern. |
+
+### 2.5 Key Technical Learnings from Research
+
+**IPC boundary security**
+All SQLite and LLM API calls must run in Electron's main process. The renderer communicates through a typed, named `contextBridge` (preload script). Exposing raw `ipcRenderer` to the renderer is a common security mistake in amateur Electron projects and must be avoided.
+
+**ASAR archive exclusion**
+Electron packages app code into a read-only ASAR archive. The SQLite database must live in `app.getPath('userData')` — outside the archive — so it can be written to at runtime. First launch runs migration SQL to create the empty schema.
+
+**JSON schema generation reliability**
+Prompt-only JSON generation from Claude fails to produce valid output approximately 5% of the time. Using Claude Structured Outputs with a Zod schema reduces this to effectively zero. This is the single most important reliability decision in the application.
+
+**Drizzle-kit in packaged apps**
+The `drizzle-kit` migration CLI must not run inside the packaged application. The correct approach: generate migrations during development, bundle the resulting SQL files into the app, and execute them programmatically at startup using `better-sqlite3`'s `exec()` method.
+
+**Streaming on task execution**
+When "Go" is pressed, tasks may take 10–60 seconds. Streaming intermediate progress back to the UI ("Searching the web for…", "Reviewing results…") is expected UX for AI applications in 2025. A static loading spinner with no feedback is perceived as broken.
+
+**Execution reliability**
+Production AI agent hallucination rates are reported at 17–33% even in commercial tools. Mitigation: keep individual tasks narrow in scope (a task that does three things is three tasks), show intermediate results where possible, and store execution logs per run for debugging.
+
+---
+
+## 3. Technology Stack
+
+The stack was initially drafted and then validated and refined against research into existing projects, open source libraries, and known Electron production patterns. The table below reflects the confirmed choices.
 
 | Layer | Technology | Reason |
 |---|---|---|
-| Desktop shell | Electron + TypeScript | Renders flexible UI in a .exe, TypeScript already in use on JLH |
-| UI framework | React | Component-based, works naturally with dynamic JSON schemas |
-| Local database | SQLite | Single local file, robust, relational, no server needed |
-| AI | Claude API (Anthropic) | Conversation, task definition, form generation, execution, review |
-| Web search tool | Tavily or Brave Search API | Provides web retrieval capability for information tasks |
+| **Build tooling** | electron-vite + TypeScript | Official 2025 Electron build tool. Vite-based — fast hot reload, smaller bundles than Webpack. Scaffolds Electron + React + TypeScript cleanly. |
+| **Desktop shell** | Electron | Bundles its own Chromium — no WebView2 dependency (avoids the JLH Word add-in blank screen issue entirely). Produces a self-contained Windows `.exe`. |
+| **UI framework** | React | Component-based, works naturally with dynamically rendered JSON schemas. |
+| **UI components** | Shadcn/UI + TailwindCSS | Ships source code into the project (not a black-box dependency). Fully controllable styling. Consistent, clean, non-technical appearance. |
+| **Form rendering** | react-jsonschema-form (RJSF) | The standard library for rendering validated forms from JSON Schema in React. Claude generates the schema; RJSF renders the form. Supports conditional fields, custom widgets, validation. |
+| **Database driver** | better-sqlite3 | Fastest synchronous SQLite driver for Node.js. Runs in Electron main process. |
+| **ORM / migrations** | Drizzle ORM | Lightweight TypeScript-first ORM. Schema defined in code, type-safe queries. Migration SQL files bundled into the app and run at startup — drizzle-kit itself only runs on the dev machine. |
+| **LLM orchestration** | Vercel AI SDK | TypeScript-first. `generateObject` with Zod schemas constrains Claude's output to valid JSON — critical for reliable form schema generation. `streamText` with tool definitions handles task execution with real-time progress. |
+| **Structured outputs** | Claude API + Zod | Claude Structured Outputs (beta) combined with Zod schema validation guarantees the AI returns valid, complete JSON schemas. Eliminates the ~5% malformed-output failure rate of prompt-only JSON generation. |
+| **AI model** | Claude (Anthropic) | Conversation, task definition, form schema generation, task execution, safety review. |
+| **Web search tool** | Tavily (`@tavily/core`) | Purpose-built search API for AI agents. Returns structured, LLM-ready results. 1,000 free calls/month. Official TypeScript/Node.js SDK. |
+| **API key storage** | Electron `safeStorage` | OS-level encryption (Windows DPAPI) for storing Claude and Tavily API keys. Keys are never in source code or config files. Available since Electron 15. Fully supported on Windows 10. |
+| **Database location** | `app.getPath('userData')` | OS-correct persistent storage location. Database file lives outside the ASAR archive (which is read-only) and persists across app updates. |
 
 ---
 
