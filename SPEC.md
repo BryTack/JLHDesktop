@@ -1,6 +1,6 @@
 # JLH Desktop — Working Specification
 
-**Version:** 0.0.4
+**Version:** 0.0.5
 **Date:** 2026-02-21
 **Status:** Draft
 
@@ -14,10 +14,14 @@
 
 > *Define a task once. Come back months later. Understand it immediately. Use it. Get results.*
 
-- The AI does the thinking — Claude handles housekeeping, suggestions, categorisation, and layout decisions
+- The AI does the thinking — the AI handles housekeeping, suggestions, categorisation, and layout decisions
 - Joanna makes decisions, not configurations
 - Every task is self-documenting — no external knowledge required to use it
 - Non-technical user experience throughout — complexity is hidden or flagged for specialist help
+
+### AI Provider Philosophy
+
+The application is **AI agnostic**. It is not coupled to any specific AI provider or model. The active provider and model are configured in one place (the admin page) and can be swapped without code changes. Claude (Anthropic) is the initial default, but this is a configuration choice, not an architectural dependency.
 
 ---
 
@@ -40,7 +44,7 @@ The concept is **genuinely novel** as a combined product. The distinguishing thr
 | Raycast AI PromptLab | Saved AI commands with variable placeholders | macOS only. No guided definition conversation. No tool execution. Prompts are static templates, not typed schemas. |
 | Zapier Copilot | Natural language workflow creation, saves reusable flows | Cloud/SaaS only. Requires app integrations (Slack, Gmail etc.). Not a personal local library. Cannot run free-form tasks. |
 | AnythingLLM | Desktop app, local storage, agent builder | Agent builder is node-graph-based, not conversational. No form generation from schema. Skews technical in configuration. |
-| PyGPT | Desktop, presets, plugin system, supports Claude | Presets are prompt templates, not parameterised schemas. No form generation. Task definition and execution are not separated concepts. |
+| PyGPT | Desktop, presets, plugin system | Presets are prompt templates, not parameterised schemas. No form generation. Task definition and execution are not separated concepts. |
 | Lindy AI | Conversational agent definition, recurring tasks | Cloud-only. No local storage. No form generation. Runs on schedules/triggers, not on-demand form execution. |
 | Flowise / LangFlow | Visual workflow builder, local, open source | Requires technical drag-and-drop node editing. Not accessible to a non-technical user. |
 
@@ -64,13 +68,13 @@ The concept is **genuinely novel** as a combined product. The distinguishing thr
 ### 2.5 Key Technical Learnings from Research
 
 **IPC boundary security**
-All SQLite and LLM API calls must run in Electron's main process. The renderer communicates through a typed, named `contextBridge` (preload script). Exposing raw `ipcRenderer` to the renderer is a common security mistake in amateur Electron projects and must be avoided.
+All SQLite and AI API calls must run in Electron's main process. The renderer communicates through a typed, named `contextBridge` (preload script). Exposing raw `ipcRenderer` to the renderer is a common security mistake in amateur Electron projects and must be avoided.
 
 **ASAR archive exclusion**
 Electron packages app code into a read-only ASAR archive. The SQLite database must live in `app.getPath('userData')` — outside the archive — so it can be written to at runtime. First launch runs migration SQL to create the empty schema.
 
 **JSON schema generation reliability**
-Prompt-only JSON generation from Claude fails to produce valid output approximately 5% of the time. Using Claude Structured Outputs with a Zod schema reduces this to effectively zero. This is the single most important reliability decision in the application.
+Prompt-only JSON generation from the AI fails to produce valid output approximately 5% of the time. Using AI structured outputs with a Zod schema reduces this to effectively zero. This is the single most important reliability decision in the application.
 
 **Drizzle-kit in packaged apps**
 The `drizzle-kit` migration CLI must not run inside the packaged application. The correct approach: generate migrations during development, bundle the resulting SQL files into the app, and execute them programmatically at startup using `better-sqlite3`'s `exec()` method.
@@ -93,21 +97,21 @@ The stack was initially drafted and then validated and refined against research 
 | **Desktop shell** | Electron | Bundles its own Chromium — no WebView2 dependency (avoids the JLH Word add-in blank screen issue entirely). Produces a self-contained Windows `.exe`. |
 | **UI framework** | React | Component-based, works naturally with dynamically rendered JSON schemas. |
 | **UI components** | Shadcn/UI + TailwindCSS | Ships source code into the project (not a black-box dependency). Fully controllable styling. Consistent, clean, non-technical appearance. |
-| **Form rendering** | react-jsonschema-form (RJSF) | The standard library for rendering validated forms from JSON Schema in React. Claude generates the schema; RJSF renders the form. Supports conditional fields, custom widgets, validation. |
+| **Form rendering** | react-jsonschema-form (RJSF) | The standard library for rendering validated forms from JSON Schema in React. The AI generates the schema; RJSF renders the form. Supports conditional fields, custom widgets, validation. |
 | **Database driver** | better-sqlite3 | Fastest synchronous SQLite driver for Node.js. Runs in Electron main process. |
 | **ORM / migrations** | Drizzle ORM | Lightweight TypeScript-first ORM. Schema defined in code, type-safe queries. Migration SQL files bundled into the app and run at startup — drizzle-kit itself only runs on the dev machine. |
-| **LLM orchestration** | Vercel AI SDK | TypeScript-first. `generateObject` with Zod schemas constrains Claude's output to valid JSON — critical for reliable form schema generation. `streamText` with tool definitions handles task execution with real-time progress. |
-| **Structured outputs** | Claude API + Zod | Claude Structured Outputs (beta) combined with Zod schema validation guarantees the AI returns valid, complete JSON schemas. Eliminates the ~5% malformed-output failure rate of prompt-only JSON generation. |
-| **AI model** | Claude (Anthropic) | Conversation, task definition, form schema generation, task execution, safety review. |
-| **Web search tool** | Tavily (`@tavily/core`) | Purpose-built search API for AI agents. Returns structured, LLM-ready results. 1,000 free calls/month. Official TypeScript/Node.js SDK. |
-| **API key storage** | Electron `safeStorage` | OS-level encryption (Windows DPAPI) for storing Claude and Tavily API keys. Keys are never in source code or config files. Available since Electron 15. Fully supported on Windows 10. |
+| **LLM orchestration** | Vercel AI SDK | TypeScript-first, AI-provider-agnostic. `generateObject` with Zod schemas constrains AI output to valid JSON — critical for reliable form schema generation. `streamText` with tool definitions handles task execution with real-time progress. Supports all major providers. |
+| **Structured outputs** | Provider structured outputs + Zod | Provider-level structured output constraints combined with Zod schema validation guarantees the AI returns valid, complete JSON schemas. Eliminates the ~5% malformed-output failure rate of prompt-only JSON generation. |
+| **AI provider** | Configurable — Claude (Anthropic) by default | Provider and model are set in the admin page. Can be changed without code changes. Initial default: Claude (Anthropic). |
+| **Web search tool** | Tavily (`@tavily/core`) | Purpose-built search API for AI agents. Returns structured, AI-ready results. 1,000 free calls/month. Official TypeScript/Node.js SDK. |
+| **API key storage** | Electron `safeStorage` | OS-level encryption (Windows DPAPI) for storing AI provider and search API keys. Keys are never in source code or config files. Available since Electron 15. Fully supported on Windows 10. |
 | **Database location** | `app.getPath('userData')` | OS-correct persistent storage location. Database file lives outside the ASAR archive (which is read-only) and persists across app updates. |
 
 ---
 
-## 3. Application Structure
+## 4. Application Structure
 
-### 3.1 Navigation
+### 4.1 Navigation
 
 The app uses a **persistent left sidebar** for navigation. The main area renders the selected view.
 
@@ -130,7 +134,18 @@ The app uses a **persistent left sidebar** for navigation. The main area renders
 └─────────────────────┴──────────────────────────────────┘
 ```
 
-### 3.2 Views
+### 4.2 Application Modes
+
+The app operates in one of two modes at any time:
+
+| Mode | Who | Access |
+|---|---|---|
+| **User mode** | Joanna | Default mode on launch. Full task library access. User safety rules apply. |
+| **Admin mode** | Developer / owner | Accessed via `Ctrl+Shift+A`. Reveals admin page. Admin safety rules apply. |
+
+Mode determines which set of safety rules the Safety Agent applies to all AI interactions.
+
+### 4.3 Views
 
 | View | Description |
 |---|---|
@@ -140,7 +155,7 @@ The app uses a **persistent left sidebar** for navigation. The main area renders
 
 ---
 
-## 4. Home View
+## 5. Home View
 
 Displayed on application launch. Contains:
 
@@ -155,9 +170,9 @@ As the library grows, cards are grouped by category matching the sidebar. Clicki
 
 ---
 
-## 5. Task View
+## 6. Task View
 
-### 5.1 Always Visible
+### 6.1 Always Visible
 
 Every task view permanently displays:
 
@@ -167,7 +182,7 @@ Every task view permanently displays:
 - **Any restrictions or notes** — e.g. "Results are from public sources — always verify before booking"
 - **Last used date**
 
-### 5.2 Input Form
+### 6.2 Input Form
 
 Dynamically rendered from the task's stored JSON schema. Field types include:
 
@@ -177,40 +192,40 @@ Dynamically rendered from the task's stored JSON schema. Field types include:
 - Date picker
 - (Extensible — new field types added as needed)
 
-### 5.3 Buttons
+### 6.3 Buttons
 
 | Button | Action |
 |---|---|
-| **Go** | Validates inputs, runs the task via Claude + tools, displays results |
+| **Go** | Validates inputs, runs the task via the AI + tools, displays results |
 | **New** | Clears last session inputs and results (only shown if `retain_last_session = true`) |
 | **⚙ (Cog icon)** | Opens the task refinement dialog |
 
-### 5.4 Results Area
+### 6.4 Results Area
 
-Displayed below the form after "Go" is pressed. Format is defined per task during setup (text area, list, table, etc.). A follow-up question input remains active after results are shown — Joanna can ask Claude further questions in context.
+Displayed below the form after "Go" is pressed. Format is defined per task during setup (text area, list, table, etc.). A follow-up question input remains active after results are shown — Joanna can ask the AI further questions in context.
 
-### 5.5 Session Persistence
+### 6.5 Session Persistence
 
-Each task has a `retain_last_session` flag (boolean, set during task definition by Claude). When true:
+Each task has a `retain_last_session` flag (boolean, set during task definition by the AI). When true:
 - Last inputs and results are shown when the task is reopened
 - "New" button is visible to clear and start fresh
 
 When false:
 - Task always opens clean
 
-Claude suggests the appropriate default during task creation and states it plainly in the task summary. Joanna can override via the cog.
+The AI suggests the appropriate default during task creation and states it plainly in the task summary. Joanna can override via the cog.
 
 ---
 
-## 6. Task Definition — The AI Conversation
+## 7. Task Definition — The AI Conversation
 
-### 6.1 Starting a New Task
+### 7.1 Starting a New Task
 
-Triggered by "+ New Task". A conversation view opens. Claude asks:
+Triggered by "+ New Task". A conversation view opens. The AI asks:
 
 > *"How can I help?"*
 
-Joanna describes her task in plain English. Claude then:
+Joanna describes her task in plain English. The AI then:
 
 1. Asks clarifying questions to fully understand the task
 2. Identifies what fields/data are needed
@@ -221,28 +236,28 @@ Joanna describes her task in plain English. Claude then:
 
 This is an iterative back-and-forth until both parties are satisfied.
 
-### 6.2 Complexity Threshold
+### 7.2 Complexity Threshold
 
-During the definition conversation, Claude assesses whether the task is within scope for a non-technical user. If the task would require custom integrations, private system access, or specialist configuration, Claude responds:
+During the definition conversation, the AI assesses whether the task is within scope for a non-technical user. If the task would require custom integrations, private system access, or specialist configuration, the AI responds:
 
 > *"This task would need some technical setup to work properly — you might want to ask someone with IT experience to help configure it. Would you like to note this idea for later?"*
 
 No technical detail is given. The message is friendly and non-alarming.
 
-### 6.3 Confirming and Saving
+### 7.3 Confirming and Saving
 
-When Joanna is happy, she clicks **"Do it"**. Claude:
-- Passes the task through the hidden safety reviewer
+When Joanna is happy, she clicks **"Do it"**. The AI:
+- Passes the task through the Safety Agent
 - If safe: saves the task to SQLite, generates the form, adds to sidebar under the suggested category
-- If blocked: shows a polite plain English message, does not save
+- If blocked: shows a polite plain English message with a reason, does not save
 
-### 6.4 Category Management
+### 7.4 Category Management
 
-Claude suggests a category during task creation. Joanna confirms or suggests an alternative. New categories are created automatically. Tasks can be moved via the cog at any time.
+The AI suggests a category during task creation. Joanna confirms or suggests an alternative. New categories are created automatically. Tasks can be moved via the cog at any time.
 
 ---
 
-## 7. Task Refinement — The Cog
+## 8. Task Refinement — The Cog
 
 Accessed via the ⚙ icon on any task view. Opens a dialog containing:
 
@@ -250,18 +265,18 @@ Accessed via the ⚙ icon on any task view. Opens a dialog containing:
 - A conversation interface
 - An **"Update"** button
 
-Joanna converses with Claude to request changes:
+Joanna converses with the AI to request changes:
 - Logic changes: *"The hotel must be within 5 miles of the location"*
 - UI changes: *"I want a dropdown for distance instead of a text box"*
 - Both: *"Actually I want restaurants, not hotels"*
 
-Claude updates the task summary in the dialog as the conversation progresses. When Joanna agrees with the updated summary, she clicks Update. The task definition, form schema, and execution instructions are all updated in SQLite. The task view re-renders immediately.
+The AI updates the task summary in the dialog as the conversation progresses. When Joanna agrees with the updated summary, she clicks Update. The task definition, form schema, and execution instructions are all updated in SQLite. The task view re-renders immediately.
 
 ---
 
-## 8. Task Types
+## 9. Task Types
 
-The system supports multiple task types, each mapping to one or more Claude tools. New types are added by registering new tools.
+The system supports multiple task types, each mapping to one or more AI tools. New types are added by registering new tools.
 
 | Category | Examples | Tools Used |
 |---|---|---|
@@ -274,9 +289,9 @@ The system supports multiple task types, each mapping to one or more Claude tool
 
 ---
 
-## 9. Data Model
+## 10. Data Model
 
-### 9.1 SQLite Tables
+### 10.1 SQLite Tables
 
 **`tasks`**
 
@@ -289,7 +304,7 @@ The system supports multiple task types, each mapping to one or more Claude tool
 | intent | TEXT | AI-facing description of task purpose |
 | constraints | TEXT (JSON) | Rules and restrictions |
 | form_schema | TEXT (JSON) | Field definitions for form rendering |
-| execution_instructions | TEXT (JSON) | How Claude should execute the task |
+| execution_instructions | TEXT (JSON) | How the AI should execute the task |
 | tools_required | TEXT (JSON) | List of tool names needed |
 | retain_last_session | INTEGER | Boolean — 1 or 0 |
 | last_inputs | TEXT (JSON) | Field values from last run |
@@ -299,15 +314,78 @@ The system supports multiple task types, each mapping to one or more Claude tool
 | last_used_at | TEXT | ISO timestamp |
 | last_modified_at | TEXT | ISO timestamp |
 
+---
+
+**`documents`**
+
+Stores persistent text documents and scripts used by the application. The list grows on demand — only what is needed is added.
+
+| Column | Type | Description |
+|---|---|---|
+| id | TEXT (UUID) | Unique identifier |
+| name | TEXT | Human-readable name (e.g. "User Safety Rules") |
+| doc_type | TEXT | Category: `safety_rule`, `system_prompt`, `script`, `template` |
+| context | TEXT | Who it applies to: `admin`, `user`, `system` |
+| content | TEXT | The document content |
+| format | TEXT | `text`, `markdown`, `prompt`, `json` |
+| is_editable | INTEGER | Boolean — whether editable via admin page |
+| version | INTEGER | Increments on each save |
+| created_at | TEXT | ISO timestamp |
+| updated_at | TEXT | ISO timestamp |
+
+**Starting documents (minimum set):**
+
+| Name | doc_type | context | Notes |
+|---|---|---|---|
+| User Safety Rules | `safety_rule` | `user` | Rules applied by the Safety Agent in user mode |
+| Admin Safety Rules | `safety_rule` | `admin` | Rules applied by the Safety Agent in admin mode |
+
+Further documents added as the need arises.
+
+---
+
+**`event_log`**
+
+Records application events for debugging, auditing, and usage insight. The event type list grows on demand — only what is needed is added.
+
+| Column | Type | Description |
+|---|---|---|
+| id | TEXT (UUID) | Unique identifier |
+| timestamp | TEXT | ISO datetime (indexed) |
+| event_type | TEXT | e.g. `ai_interaction`, `error` |
+| severity | TEXT | `info`, `warning`, `error` |
+| payload | TEXT (JSON) | Full event detail — structure varies by event type |
+
+**Starting event types (minimum set):**
+
+| Event Type | Trigger | Payload includes |
+|---|---|---|
+| `ai_interaction` | Every AI API call | interaction_type, mode (admin/user), messages sent, response, model, provider, tokens used, duration, tools called |
+| `error` | Any caught application failure | context, message, stack (internal only) |
+
+Further event types added as the need arises.
+
+---
+
 **`app_config`**
 
 | Column | Type | Description |
 |---|---|---|
-| key | TEXT | Config key (e.g. "safety_guidelines") |
+| key | TEXT | Config key |
 | value | TEXT | Config value |
 | updated_at | TEXT | ISO timestamp |
 
-### 9.2 Form Schema Format (JSON)
+**Starting config keys:**
+
+| Key | Description |
+|---|---|
+| `ai_provider` | Active AI provider (e.g. `anthropic`, `openai`) |
+| `ai_model` | Active model identifier (e.g. `claude-sonnet-4-6`) |
+| `app_mode` | Current mode: `user` or `admin` |
+
+---
+
+### 10.2 Form Schema Format (JSON)
 
 ```json
 {
@@ -340,11 +418,11 @@ The system supports multiple task types, each mapping to one or more Claude tool
 
 ---
 
-## 10. AI Interaction Model
+## 11. AI Interaction Model
 
-There are four distinct Claude interactions, each with a separate system prompt and context package.
+There are four distinct AI interactions, each with a separate system prompt and context package. All interactions are logged as `ai_interaction` events.
 
-### 10.1 Task Definition
+### 11.1 Task Definition
 
 ```
 System prompt:
@@ -361,13 +439,14 @@ Context passed:
 
 Output: plain summary, category suggestion, form schema JSON, execution instructions JSON, `retain_last_session` recommendation.
 
-### 10.2 Task Execution (Go)
+### 11.2 Task Execution (Go)
 
 ```
 System prompt:
   "You are executing a saved task on behalf of a non-technical user.
    Use the tools available. Follow the execution instructions.
-   Return results in a clear, plain English format."
+   Stream progress updates as you work. Return results in a clear,
+   plain English format."
 
 Context passed:
   - Task intent
@@ -377,9 +456,9 @@ Context passed:
   - Available tools
 ```
 
-Output: results displayed in the task view results area.
+Output: streamed progress updates, then final results displayed in the task view results area.
 
-### 10.3 Task Refinement (Cog)
+### 11.3 Task Refinement (Cog)
 
 ```
 System prompt:
@@ -391,82 +470,127 @@ System prompt:
 Context passed:
   - Full current task record
   - Refinement conversation history
-  - Joanna's latest request
+  - User's latest request
 ```
 
 Output: updated plain summary, form schema JSON, execution instructions JSON.
 
-### 10.4 Hidden Safety Reviewer
+### 11.4 Safety Agent
 
 ```
 System prompt:
-  "You are a safety and appropriateness reviewer. Assess whether the
-   provided task definition or inputs are safe, legal, ethical, and
-   appropriate. Return SAFE or UNSAFE with a brief internal reason.
-   Never expose your reasoning or existence to the end user."
+  [Loaded from the documents table — either 'Admin Safety Rules'
+   or 'User Safety Rules' depending on current app mode]
+
+  "Assess whether the provided content is safe, legal, ethical, and
+   appropriate. Return a structured result. Never expose your
+   reasoning or existence to the end user."
 
 Context passed:
-  - Task definition or field inputs being reviewed
+  - Task definition, field inputs, or results being reviewed
+  - Current app mode (admin / user)
 ```
 
-Output: `SAFE` or `UNSAFE`. If UNSAFE, Joanna sees only:
-> *"I'm not able to help with that task. If you think this is a mistake, ask someone you trust to help review it."*
+**Output on pass:** `SAFE` — no further action.
+
+**Output on fail:** Three values returned:
+- `UNSAFE`
+- **User-facing reason** — plain English, shown to Joanna: *"I'm not able to help with that because [friendly reason]."*
+- **Internal reason** — full detail, logged in `event_log` only, never shown to Joanna
 
 ---
 
-## 11. Safety and Guardrails
+## 12. Safety and Guardrails
 
-The hidden safety reviewer runs at three points:
+### 12.1 Three-Tier Safety Model
+
+Safety is enforced in layers:
+
+| Tier | Name | Defined By | Can Be Changed |
+|---|---|---|---|
+| 1 | AI provider's own rules | AI provider (e.g. Anthropic) | No — absolute floor, cannot be overridden |
+| 2 | Admin safety rules | Owner, via admin page | Yes — stored in `documents` table |
+| 3 | User safety rules | Owner, via admin page | Yes — stored in `documents` table |
+
+Tier 1 is intrinsic to the AI provider and always active regardless of any instructions. Tiers 2 and 3 are defined and maintained by the owner and applied by the Safety Agent depending on the current app mode.
+
+*Note: A fourth tier ("AI's own safety rules" as a distinct application-level concept) has been identified as a future consideration and will be defined when requirements are clearer.*
+
+### 12.2 Safety Agent Trigger Points
+
+The Safety Agent runs silently at three points in every session:
 
 1. **Task definition** — before any new task is saved
-2. **Before Go** — before task execution, reviewing live field inputs
-3. **Result display** — screening output before it is shown to Joanna
+2. **Before Go** — before task execution, reviewing live field inputs against the active rules
+3. **Result display** — screening AI output before it is shown to the user
 
-The safety guidelines (reviewer system prompt) are stored in the `app_config` table under the key `safety_guidelines`. They can be reviewed and updated at any time via the Admin Page.
+### 12.3 Mode and Rules
+
+| App Mode | Safety Rules Applied |
+|---|---|
+| User mode | User Safety Rules (Tier 3) |
+| Admin mode | Admin Safety Rules (Tier 2) |
+
+Both tiers always operate on top of the AI provider's intrinsic rules (Tier 1).
+
+### 12.4 On Failure
+
+When the Safety Agent returns `UNSAFE`:
+- The action is blocked
+- Joanna sees a friendly plain English message with a reason — e.g. *"I'm not able to help with that because it involves finding personal information about another person."*
+- The full internal reason is written to the `event_log` (`ai_interaction` event, severity `warning`)
+- No technical detail is ever shown to Joanna
+
+### 12.5 Updating Safety Rules
+
+Both rule sets are stored in the `documents` table and editable via the admin page using the same conversation + Update pattern as the cog refinement flow. Changes take effect immediately on the next Safety Agent call.
 
 ---
 
-## 12. Admin Page
+## 13. Admin Page
 
-**Access:** `Ctrl+Shift+A` — no visible button or menu item.
-**Not visible to Joanna.**
+**Access:** `Ctrl+Shift+A` — no visible button or menu item. Switches the app into admin mode.
+**Not visible to or accessible by Joanna.**
 
 Contains:
 
 | Section | Purpose |
 |---|---|
-| Safety guidelines | Review and update the reviewer's system prompt via AI conversation |
-| Complexity threshold | Review and update the guidelines Claude uses to flag overly complex tasks |
-| API keys | Claude API key, search API key — stored locally in SQLite, never in code |
-| App diagnostics | Version, total task count, last backup date |
+| **AI provider** | Select provider (e.g. Anthropic, OpenAI) and model. Stored in `app_config`. One place to swap the AI — no code changes needed. |
+| **API keys** | AI provider API key, search API key — stored via `safeStorage`, never in code or config files. |
+| **User Safety Rules** | Review and update via AI conversation. Loaded from `documents` table. |
+| **Admin Safety Rules** | Review and update via AI conversation. Loaded from `documents` table. |
+| **Complexity threshold** | Review and update the guidelines the AI uses to flag overly complex tasks. |
+| **App diagnostics** | Version, total task count, event log viewer. |
 
-The safety guidelines and complexity threshold sections use the same conversation + Update pattern as the cog refinement flow. The admin user converses with Claude to refine the statement, reviews the updated draft, and clicks Update to save.
+Safety rule sections use the same conversation + Update pattern as the cog refinement flow. The admin converses with the AI to refine the rules, reviews the updated draft, and clicks Update to save back to the `documents` table.
 
 ---
 
-## 13. Future Considerations (Out of Scope for V1)
+## 14. Future Considerations (Out of Scope for V1)
 
 | Feature | Notes |
 |---|---|
 | Export / import tasks | Serialise a task record to JSON file. Import reverses this. No architectural changes needed — add when required. |
 | Cloud sync | Out of scope. SQLite local only for V1. |
 | Result export | Copy to clipboard, save as PDF, email. Add per task type as needed. |
-| Additional tool types | New task categories added by registering new Claude tools. |
+| Additional tool types | New task categories added by registering new AI tools. |
 | Multi-user support | Not required. Single user (Joanna) on a single machine. |
+| AI's own application-level safety rules | Identified as a future concept — requirements to be defined. |
 
 ---
 
-## 14. Non-Functional Requirements
+## 15. Non-Functional Requirements
 
-- **Performance:** App must feel responsive. Claude API calls should show a clear loading indicator. Long-running tasks should not block the UI.
+- **Performance:** App must feel responsive. AI API calls should show a clear loading indicator with streamed progress. Long-running tasks must not block the UI.
 - **Reliability:** SQLite writes must be transactional — no partial saves.
-- **Security:** API keys stored locally only, never in source code or logs. Claude never receives more context than needed for each interaction.
+- **Security:** API keys stored via `safeStorage` only, never in source code or logs. The AI never receives more context than needed for each interaction.
 - **Usability:** Every user-facing message must be plain English. No technical error messages shown to Joanna. All errors are caught and presented as friendly, actionable guidance.
-- **Maintainability:** Task types and tools are registered in a central configuration. Adding a new task type requires no changes to core application logic.
+- **Maintainability:** Task types and tools are registered in a central configuration. Adding a new task type requires no changes to core application logic. AI provider can be swapped via the admin page without code changes.
 
 ---
 
-## 15. Minimum PC Specification
+## 16. Minimum PC Specification
 
 These are the minimum requirements for running the final packaged application on any target machine (including the Win10 machine).
 
@@ -477,19 +601,19 @@ These are the minimum requirements for running the final packaged application on
 | **RAM** | 4 GB | 8 GB |
 | **Storage** | 600 MB free (app ~300 MB + database growth) | 1 GB free |
 | **Display** | 1280 × 720 minimum resolution | 1920 × 1080 |
-| **Internet** | Required for task execution (Claude API + web search) | Stable broadband |
+| **Internet** | Required for task execution (AI provider API + web search) | Stable broadband |
 | **CPU** | Any x64 processor (2 cores, ~2 GHz) | 4 cores |
 | **GPU** | None required — Electron can run in software rendering mode | Any |
 
 ### Notes
 - **No Node.js required** on the target machine. The packaged `.exe` is fully self-contained.
 - **No Office/Word required.** JLH Desktop is entirely independent of JLH (the Word add-in).
-- **Internet is required at runtime** for any task that uses the Claude API or web search. The app can be opened and tasks browsed offline, but pressing "Go" will fail gracefully with a friendly message if no connection is available.
+- **Internet is required at runtime** for any task that uses the AI provider API or web search. The app can be opened and tasks browsed offline, but pressing "Go" will fail gracefully with a friendly message if no connection is available.
 - **Windows 10 build version** — check via `Settings → System → About → OS Build`. Must be 17763 or higher (build number for version 1809).
 
 ---
 
-## 16. Platform Compatibility
+## 17. Platform Compatibility
 
 ### Development Machine
 Windows 11 laptop. All development and testing happens here first.
@@ -506,7 +630,7 @@ Windows 10 desktop (older hardware). The final application must run correctly on
 | **SQLite native bindings** | `better-sqlite3` compiles against the Node.js version bundled with Electron. Handled automatically by the build process — no manual steps on target machine. |
 | **Windows Defender SmartScreen** | An unsigned `.exe` will trigger a "Windows protected your PC" warning on first run. Joanna must click "More info → Run anyway". Expected behaviour for a personal unsigned app. |
 | **Performance** | Electron embeds a full Chromium instance. Target machine should have a minimum of 4GB RAM. Cold start may be slower than on development machine. |
-| **Network / Firewall** | Outbound HTTPS calls to the Claude API and web search API must not be blocked. Verify on the target machine's specific network before deployment. |
+| **Network / Firewall** | Outbound HTTPS calls to the AI provider API and web search API must not be blocked. Verify on the target machine's specific network before deployment. |
 | **Visual C++ Redistributables** | May be required by native modules. Bundle within the installer or verify pre-installed on target machine. |
 
 ### Build & Distribution
@@ -514,7 +638,7 @@ The final `.exe` is produced using **electron-builder** or **electron-forge**, g
 
 ---
 
-## 17. Companion Test Harness
+## 18. Companion Test Harness
 
 Before building the main Electron application, a lightweight **CLI test harness** is developed and run on both machines. This de-risks the environment and proves the core technical mechanic before any UI work begins.
 
@@ -532,10 +656,10 @@ A small standalone TypeScript project. Runs from the command line with Node.js. 
 jlh-desktop-harness/
 ├── src/
 │   ├── tests/
-│   │   ├── test-claude-api.ts        — Basic Claude API call
-│   │   ├── test-claude-json.ts       — Claude produces valid JSON schema
-│   │   ├── test-claude-tools.ts      — Claude tool use (web_search invocation)
-│   │   ├── test-search-api.ts        — Tavily / Brave Search API call
+│   │   ├── test-ai-api.ts            — Basic AI provider API call
+│   │   ├── test-ai-json.ts           — AI produces valid JSON schema
+│   │   ├── test-ai-tools.ts          — AI tool use (web_search invocation)
+│   │   ├── test-search-api.ts        — Tavily Search API call
 │   │   ├── test-sqlite.ts            — SQLite create / read / write
 │   │   └── test-core-loop.ts         — Full mini loop end to end
 │   └── run-all.ts                    — Runs all tests, reports pass/fail
@@ -547,9 +671,9 @@ jlh-desktop-harness/
 
 | Test | What It Proves |
 |---|---|
-| `test-claude-api` | Network connectivity, API key valid, basic response received |
-| `test-claude-json` | Claude reliably returns parseable, valid JSON schema from a prompt |
-| `test-claude-tools` | Tool use works — Claude correctly invokes a registered tool |
+| `test-ai-api` | Network connectivity, API key valid, basic response received |
+| `test-ai-json` | AI reliably returns parseable, valid JSON schema from a prompt |
+| `test-ai-tools` | Tool use works — AI correctly invokes a registered tool |
 | `test-search-api` | Search API key valid, results returned |
 | `test-sqlite` | Native bindings compile correctly, CRUD operations succeed |
 | `test-core-loop` | Full sequence: conversation → JSON schema → field values → tool call → result |
@@ -564,7 +688,7 @@ Each test prints a clear PASS / FAIL with a one-line reason. No technical stack 
 
 ---
 
-## 18. Build Order
+## 19. Build Order
 
 Development proceeds in phases. Each phase has a clear exit criterion — the next phase does not begin until it is met.
 
@@ -584,10 +708,10 @@ Set up the Electron + TypeScript + React project. No application logic yet.
 - Electron window launches
 - Basic sidebar (hardcoded, no data)
 - Main area placeholder
-- SQLite connected, `tasks` and `app_config` tables created
-- Claude API connected — basic call confirmed working within Electron context
+- SQLite connected, `tasks`, `documents`, `event_log`, and `app_config` tables created
+- AI provider connected — basic call confirmed working within Electron context
 
-**Exit criterion:** App launches on both machines. SQLite file created. Claude responds to a test call.
+**Exit criterion:** App launches on both machines. SQLite file created. AI provider responds to a test call.
 
 ---
 
@@ -595,10 +719,10 @@ Set up the Electron + TypeScript + React project. No application logic yet.
 
 Prove the fundamental loop works before building anything around it. Hardcoded conversation — no dynamic task definition yet.
 
-- Claude receives a fixed prompt and returns a valid form schema JSON
+- AI receives a fixed prompt and returns a valid form schema JSON
 - App reads the JSON and renders a real form (correct field types, labels, descriptions)
-- "Go" button submits field values to Claude with a fixed execution instruction
-- Claude calls the web search tool, returns results
+- "Go" button submits field values to the AI with a fixed execution instruction
+- AI calls the web search tool, streams progress, returns results
 - Results displayed in the main area
 
 **Exit criterion:** A hardcoded hotel search form renders correctly. Filling in location and budget and pressing Go returns real hotel suggestions. Proves the loop end to end.
@@ -610,8 +734,8 @@ Prove the fundamental loop works before building anything around it. Hardcoded c
 Make Phase 2 dynamic — driven by a real AI conversation.
 
 - "+ New Task" opens a conversation view
-- Claude asks "How can I help?" and conducts the full definition dialogue
-- Claude produces form schema, plain summary, category suggestion, session persistence recommendation
+- AI asks "How can I help?" and conducts the full definition dialogue
+- AI produces form schema, plain summary, category suggestion, session persistence recommendation
 - Joanna confirms → "Do it" saves task to SQLite
 - Task appears in sidebar under the correct category
 
@@ -623,9 +747,9 @@ Make Phase 2 dynamic — driven by a real AI conversation.
 
 Wire up the full execution layer properly.
 
-- Tavily / Brave Search API integrated as a registered Claude tool
-- Input validation before Go (Claude checks fields, asks Joanna to clarify if needed)
-- Results displayed cleanly below the form
+- Tavily Search API integrated as a registered AI tool
+- Input validation before Go (AI checks fields, asks Joanna to clarify if needed)
+- Results displayed cleanly below the form with streamed progress
 - Follow-up question input active after results shown
 - Session persistence (`retain_last_session`) working — last inputs and results restored on reopen, "New" button clears them
 
@@ -636,8 +760,8 @@ Wire up the full execution layer properly.
 ### Phase 5 — Task Refinement (Cog)
 
 - Cog icon opens refinement dialog showing current plain English summary
-- Joanna converses with Claude to request changes
-- Claude updates the summary draft in real time during conversation
+- Joanna converses with the AI to request changes
+- AI updates the summary draft in real time during conversation
 - "Update" saves revised task definition, form schema, and execution instructions to SQLite
 - Task view re-renders immediately with updated form
 
@@ -645,15 +769,16 @@ Wire up the full execution layer properly.
 
 ---
 
-### Phase 6 — Safety and Admin
+### Phase 6 — Safety Agent and Admin
 
-- Hidden safety reviewer running at all three trigger points (task definition, before Go, result display)
-- Admin page accessible via `Ctrl+Shift+A` — not visible to Joanna
-- Safety guidelines editable via conversation on admin page, saved to `app_config`
-- Complexity threshold editable via admin page
-- API keys stored and managed via admin page (removed from any config files or code)
+- Safety Agent running at all three trigger points (task definition, before Go, result display)
+- Safety Agent returns user-facing reason and internal reason on failure
+- Admin mode accessible via `Ctrl+Shift+A`
+- Admin page functional — AI provider selection, API key management, safety rule editing
+- User Safety Rules and Admin Safety Rules seeded in `documents` table
+- Correct rule set applied based on current app mode
 
-**Exit criterion:** A clearly unsafe task definition is blocked with a friendly message. Admin page successfully updates safety guidelines. Updated guidelines take effect immediately on next reviewer call.
+**Exit criterion:** A clearly unsafe task definition is blocked with a friendly reason shown to Joanna and internal reason logged. Admin page updates safety rules. Swapping AI provider in admin page changes the active provider immediately.
 
 ---
 
@@ -662,7 +787,7 @@ Wire up the full execution layer properly.
 Final layer — the app is functionally complete but needs to feel right for a non-technical user.
 
 - Friendly plain English error messages throughout — no technical language visible to Joanna
-- Loading indicators on all Claude API calls
+- Loading indicators and streamed progress on all AI calls
 - Complexity threshold triggers correctly during task definition
 - Last used dates displayed on task cards and task views
 - Task summaries and field descriptions reviewed for clarity and tone
