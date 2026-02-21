@@ -1,6 +1,6 @@
 # JLH Desktop — Working Specification
 
-**Version:** 0.0.2
+**Version:** 0.0.3
 **Date:** 2026-02-21
 **Status:** Draft
 
@@ -394,7 +394,30 @@ The safety guidelines and complexity threshold sections use the same conversatio
 
 ---
 
-## 15. Platform Compatibility
+## 15. Minimum PC Specification
+
+These are the minimum requirements for running the final packaged application on any target machine (including the Win10 machine).
+
+| Component | Minimum | Recommended |
+|---|---|---|
+| **Operating System** | Windows 10 version 1809 (October 2018 Update) | Windows 10 version 21H2 or later / Windows 11 |
+| **Architecture** | x64 (64-bit) only — 32-bit not supported | x64 |
+| **RAM** | 4 GB | 8 GB |
+| **Storage** | 600 MB free (app ~300 MB + database growth) | 1 GB free |
+| **Display** | 1280 × 720 minimum resolution | 1920 × 1080 |
+| **Internet** | Required for task execution (Claude API + web search) | Stable broadband |
+| **CPU** | Any x64 processor (2 cores, ~2 GHz) | 4 cores |
+| **GPU** | None required — Electron can run in software rendering mode | Any |
+
+### Notes
+- **No Node.js required** on the target machine. The packaged `.exe` is fully self-contained.
+- **No Office/Word required.** JLH Desktop is entirely independent of JLH (the Word add-in).
+- **Internet is required at runtime** for any task that uses the Claude API or web search. The app can be opened and tasks browsed offline, but pressing "Go" will fail gracefully with a friendly message if no connection is available.
+- **Windows 10 build version** — check via `Settings → System → About → OS Build`. Must be 17763 or higher (build number for version 1809).
+
+---
+
+## 16. Platform Compatibility
 
 ### Development Machine
 Windows 11 laptop. All development and testing happens here first.
@@ -419,7 +442,7 @@ The final `.exe` is produced using **electron-builder** or **electron-forge**, g
 
 ---
 
-## 16. Companion Test Harness
+## 17. Companion Test Harness
 
 Before building the main Electron application, a lightweight **CLI test harness** is developed and run on both machines. This de-risks the environment and proves the core technical mechanic before any UI work begins.
 
@@ -469,7 +492,7 @@ Each test prints a clear PASS / FAIL with a one-line reason. No technical stack 
 
 ---
 
-## 17. Build Order
+## 18. Build Order
 
 Development proceeds in phases. Each phase has a clear exit criterion — the next phase does not begin until it is met.
 
