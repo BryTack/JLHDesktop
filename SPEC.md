@@ -1,6 +1,6 @@
 # JLH Desktop — Working Specification
 
-**Version:** 0.0.5
+**Version:** 0.0.8
 **Date:** 2026-02-21
 **Status:** Draft
 
@@ -21,7 +21,7 @@
 
 ### AI Provider Philosophy
 
-The application is **AI agnostic**. It is not coupled to any specific AI provider or model. The active provider and model are configured in one place (the admin page) and can be swapped without code changes. Claude (Anthropic) is the initial default, but this is a configuration choice, not an architectural dependency.
+The application is **AI agnostic**. It is not coupled to any specific AI provider or model. The active provider and model are configured in one place and can be swapped without code changes. Claude (Anthropic) is the initial default, but this is a configuration choice, not an architectural dependency.
 
 ---
 
@@ -35,17 +35,17 @@ The concept is **genuinely novel** as a combined product. The distinguishing thr
 
 1. **Define** — a guided AI conversation extracts what a task does and what inputs it needs, then persists this as a typed schema with a human-readable summary
 2. **Parameterise** — the saved schema is rendered as a clean, purpose-built form — no chat required, no re-explaining
-3. **Execute** — the AI executes the task using the filled-in values and real tools
+3. **Execute** — the task executes using the filled-in values and the appropriate engine (AI or local)
 
 ### 2.2 Closest Existing Products
 
 | Product | What It Shares | What It Lacks |
 |---|---|---|
 | Raycast AI PromptLab | Saved AI commands with variable placeholders | macOS only. No guided definition conversation. No tool execution. Prompts are static templates, not typed schemas. |
-| Zapier Copilot | Natural language workflow creation, saves reusable flows | Cloud/SaaS only. Requires app integrations (Slack, Gmail etc.). Not a personal local library. Cannot run free-form tasks. |
-| AnythingLLM | Desktop app, local storage, agent builder | Agent builder is node-graph-based, not conversational. No form generation from schema. Skews technical in configuration. |
-| PyGPT | Desktop, presets, plugin system | Presets are prompt templates, not parameterised schemas. No form generation. Task definition and execution are not separated concepts. |
-| Lindy AI | Conversational agent definition, recurring tasks | Cloud-only. No local storage. No form generation. Runs on schedules/triggers, not on-demand form execution. |
+| Zapier Copilot | Natural language workflow creation, saves reusable flows | Cloud/SaaS only. Requires app integrations. Not a personal local library. Cannot run free-form tasks. |
+| AnythingLLM | Desktop app, local storage, agent builder | Agent builder is node-graph-based, not conversational. No form generation from schema. Skews technical. |
+| PyGPT | Desktop, presets, plugin system | Presets are prompt templates, not parameterised schemas. No form generation. Task definition and execution are not separated. |
+| Lindy AI | Conversational agent definition, recurring tasks | Cloud-only. No local storage. No form generation. Runs on schedules, not on-demand form execution. |
 | Flowise / LangFlow | Visual workflow builder, local, open source | Requires technical drag-and-drop node editing. Not accessible to a non-technical user. |
 
 ### 2.3 Confirmed Gaps This Project Fills
@@ -53,7 +53,7 @@ The concept is **genuinely novel** as a combined product. The distinguishing thr
 - **Conversationally-defined, schema-first task persistence** — no existing tool cleanly separates "define a task with AI" from "run a task with AI"
 - **AI-generated form UI as the daily interaction surface** — all AI products lead with chat; the form is the novel UX pattern here
 - **Local-first, Windows desktop, non-technical user** — no Windows desktop product targets this combination
-- **Personal library metaphor** — tasks are owned, named, reusable assets that accumulate over time; no current AI product frames itself this way
+- **Personal library metaphor** — tasks are owned, named, reusable assets that accumulate over time
 
 ### 2.4 Relevant Open Source Projects Reviewed
 
@@ -80,32 +80,32 @@ Prompt-only JSON generation from the AI fails to produce valid output approximat
 The `drizzle-kit` migration CLI must not run inside the packaged application. The correct approach: generate migrations during development, bundle the resulting SQL files into the app, and execute them programmatically at startup using `better-sqlite3`'s `exec()` method.
 
 **Streaming on task execution**
-When "Go" is pressed, tasks may take 10–60 seconds. Streaming intermediate progress back to the UI ("Searching the web for…", "Reviewing results…") is expected UX for AI applications in 2025. A static loading spinner with no feedback is perceived as broken.
+When "Go" is pressed, tasks may take 10–60 seconds. Streaming intermediate progress back to the UI is expected UX. A static loading spinner with no feedback is perceived as broken.
 
 **Execution reliability**
-Production AI agent hallucination rates are reported at 17–33% even in commercial tools. Mitigation: keep individual tasks narrow in scope (a task that does three things is three tasks), show intermediate results where possible, and store execution logs per run for debugging.
+Production AI agent hallucination rates are reported at 17–33% even in commercial tools. Mitigation: keep individual tasks narrow in scope, show intermediate results where possible, and store execution logs per run for debugging.
 
 ---
 
 ## 3. Technology Stack
 
-The stack was initially drafted and then validated and refined against research into existing projects, open source libraries, and known Electron production patterns. The table below reflects the confirmed choices.
-
 | Layer | Technology | Reason |
 |---|---|---|
-| **Build tooling** | electron-vite + TypeScript | Official 2025 Electron build tool. Vite-based — fast hot reload, smaller bundles than Webpack. Scaffolds Electron + React + TypeScript cleanly. |
-| **Desktop shell** | Electron | Bundles its own Chromium — no WebView2 dependency (avoids the JLH Word add-in blank screen issue entirely). Produces a self-contained Windows `.exe`. |
+| **Build tooling** | electron-vite + TypeScript | Official 2025 Electron build tool. Vite-based — fast hot reload, smaller bundles. Scaffolds Electron + React + TypeScript cleanly. |
+| **Desktop shell** | Electron | Bundles its own Chromium — no WebView2 dependency. Produces a self-contained Windows `.exe`. |
 | **UI framework** | React | Component-based, works naturally with dynamically rendered JSON schemas. |
-| **UI components** | Shadcn/UI + TailwindCSS | Ships source code into the project (not a black-box dependency). Fully controllable styling. Consistent, clean, non-technical appearance. |
-| **Form rendering** | react-jsonschema-form (RJSF) | The standard library for rendering validated forms from JSON Schema in React. The AI generates the schema; RJSF renders the form. Supports conditional fields, custom widgets, validation. |
+| **UI components** | Shadcn/UI + TailwindCSS | Ships source code into the project. Fully controllable styling. Consistent, clean, non-technical appearance. |
+| **Form rendering** | react-jsonschema-form (RJSF) | Standard library for rendering validated forms from JSON Schema in React. The AI generates the schema; RJSF renders the form. |
 | **Database driver** | better-sqlite3 | Fastest synchronous SQLite driver for Node.js. Runs in Electron main process. |
-| **ORM / migrations** | Drizzle ORM | Lightweight TypeScript-first ORM. Schema defined in code, type-safe queries. Migration SQL files bundled into the app and run at startup — drizzle-kit itself only runs on the dev machine. |
-| **LLM orchestration** | Vercel AI SDK | TypeScript-first, AI-provider-agnostic. `generateObject` with Zod schemas constrains AI output to valid JSON — critical for reliable form schema generation. `streamText` with tool definitions handles task execution with real-time progress. Supports all major providers. |
-| **Structured outputs** | Provider structured outputs + Zod | Provider-level structured output constraints combined with Zod schema validation guarantees the AI returns valid, complete JSON schemas. Eliminates the ~5% malformed-output failure rate of prompt-only JSON generation. |
-| **AI provider** | Configurable — Claude (Anthropic) by default | Provider and model are set in the admin page. Can be changed without code changes. Initial default: Claude (Anthropic). |
-| **Web search tool** | Tavily (`@tavily/core`) | Purpose-built search API for AI agents. Returns structured, AI-ready results. 1,000 free calls/month. Official TypeScript/Node.js SDK. |
-| **API key storage** | Electron `safeStorage` | OS-level encryption (Windows DPAPI) for storing AI provider and search API keys. Keys are never in source code or config files. Available since Electron 15. Fully supported on Windows 10. |
-| **Database location** | `app.getPath('userData')` | OS-correct persistent storage location. Database file lives outside the ASAR archive (which is read-only) and persists across app updates. |
+| **ORM / migrations** | Drizzle ORM | Lightweight TypeScript-first ORM. Migration SQL files bundled into the app and run at startup. |
+| **LLM orchestration** | Vercel AI SDK | TypeScript-first, AI-provider-agnostic. `generateObject` with Zod schemas for reliable JSON output. `streamText` with tool definitions for task execution with real-time progress. |
+| **Structured outputs** | Provider structured outputs + Zod | Eliminates the ~5% malformed-output failure rate of prompt-only JSON generation. |
+| **AI provider** | Configurable — Claude (Anthropic) by default | Provider and model configured via admin task. Can be changed without code changes. |
+| **Web search tool** | Tavily (`@tavily/core`) | Purpose-built search API for AI agents. Structured, AI-ready results. 1,000 free calls/month. |
+| **API key storage** | Electron `safeStorage` | OS-level encryption (Windows DPAPI). Keys never in source code or config files. |
+| **Local script execution** | Node.js (JS, compiled from TypeScript) | Local tool scripts authored in TypeScript, compiled to JS, executed at runtime. Consistent with the codebase. No additional runtime required. |
+| **Knowledge base** | Obsidian (local markdown files) | Free, local-first. JLH writes `.md` files directly to the vault folder — no API needed. |
+| **Database location** | `app.getPath('userData')` | Persistent storage outside the read-only ASAR archive. Persists across app updates. |
 
 ---
 
@@ -113,7 +113,7 @@ The stack was initially drafted and then validated and refined against research 
 
 ### 4.1 Navigation
 
-The app uses a **persistent left sidebar** for navigation. The main area renders the selected view.
+The app uses a **persistent left sidebar** for navigation. The main area renders the selected view. The sidebar shows `user` category tasks in user mode; admin mode additionally reveals `admin` and `agent` category tasks.
 
 ```
 ┌─────────────────────┬──────────────────────────────────┐
@@ -140,10 +140,10 @@ The app operates in one of two modes at any time:
 
 | Mode | Who | Access |
 |---|---|---|
-| **User mode** | Joanna | Default mode on launch. Full task library access. User safety rules apply. |
-| **Admin mode** | Developer / owner | Accessed via `Ctrl+Shift+A`. Reveals admin page. Admin safety rules apply. |
+| **User mode** | Anyone — default on launch | `user` category tasks. User Wizard Design/Review Scripts apply. |
+| **Admin mode** | Anyone with the shortcut — `Ctrl+Shift+A` | All task categories. Admin Wizard Design/Review Scripts apply. Can overrule the Wizard Review Script. |
 
-Mode determines which set of safety rules the Safety Agent applies to all AI interactions.
+Joanna is aware admin mode exists. The app is designed so she could grow into using it herself over time.
 
 ### 4.3 Views
 
@@ -151,7 +151,7 @@ Mode determines which set of safety rules the Safety Agent applies to all AI int
 |---|---|
 | **Home** | Shown on launch. Displays task library as cards. Entry point for new task creation. |
 | **Task View** | Full view of a selected task — summary, fields, Go button, results area |
-| **Admin Page** | Hidden. Accessed via `Ctrl+Shift+A`. Not visible to Joanna. |
+| **Admin UI** | Minimal — mode indicator and API key management only. Everything else is admin tasks. |
 
 ---
 
@@ -162,11 +162,12 @@ Displayed on application launch. Contains:
 - A grid/list of **task cards**, each showing:
   - Task name
   - One-line summary
-  - Category
+  - Display category
   - Last used date
+  - Draft badge (if `status = 'draft'`)
 - A **"+ New Task"** button that begins the task definition conversation
 
-As the library grows, cards are grouped by category matching the sidebar. Clicking any card opens the Task View for that task.
+Cards are grouped by display category matching the sidebar. Clicking any card opens the Task View for that task.
 
 ---
 
@@ -177,9 +178,10 @@ As the library grows, cards are grouped by category matching the sidebar. Clicki
 Every task view permanently displays:
 
 - **Task name** (top of view)
-- **Plain English summary** — what this task does, written for Joanna
-- **Field descriptions** — each input field has a plain English label and explanation of what to enter
-- **Any restrictions or notes** — e.g. "Results are from public sources — always verify before booking"
+- **Draft banner** — shown prominently if `status = 'draft'`, explaining the task is not yet ready to run and why
+- **Plain English summary** — what this task does, written for the user
+- **Field descriptions** — each input field has a plain English label and explanation
+- **Any restrictions or notes**
 - **Last used date**
 
 ### 6.2 Input Form
@@ -190,34 +192,33 @@ Dynamically rendered from the task's stored JSON schema. Field types include:
 - Number input
 - Dropdown / select
 - Date picker
-- (Extensible — new field types added as needed)
+- File picker (for tasks that require a local file as input)
+- *(Extensible — new field types added as needed)*
 
 ### 6.3 Buttons
 
-| Button | Action |
-|---|---|
-| **Go** | Validates inputs, runs the task via the AI + tools, displays results |
-| **New** | Clears last session inputs and results (only shown if `retain_last_session = true`) |
-| **⚙ (Cog icon)** | Opens the task refinement dialog |
+| Button | Action | Availability |
+|---|---|---|
+| **Go** | Validates inputs, runs the task, displays results | Disabled if `status = 'draft'` |
+| **New** | Clears last session inputs and results | Only shown if `retain_last_session = true` |
+| **⚙ (Cog icon)** | Opens the task refinement dialog | Always visible |
 
 ### 6.4 Results Area
 
-Displayed below the form after "Go" is pressed. Format is defined per task during setup (text area, list, table, etc.). A follow-up question input remains active after results are shown — Joanna can ask the AI further questions in context.
+Displayed below the form after "Go" is pressed. Format is defined per task during setup. A follow-up text input remains active after results are shown — the user can type responses or further questions in context.
 
 ### 6.5 Session Persistence
 
-Each task has a `retain_last_session` flag (boolean, set during task definition by the AI). When true:
+Each task has a `retain_last_session` flag. When true:
 - Last inputs and results are shown when the task is reopened
 - "New" button is visible to clear and start fresh
 
 When false:
 - Task always opens clean
 
-The AI suggests the appropriate default during task creation and states it plainly in the task summary. Joanna can override via the cog.
-
 ---
 
-## 7. Task Definition — The AI Conversation
+## 7. Task Definition — The Wizard
 
 ### 7.1 Starting a New Task
 
@@ -225,35 +226,69 @@ Triggered by "+ New Task". A conversation view opens. The AI asks:
 
 > *"How can I help?"*
 
-Joanna describes her task in plain English. The AI then:
+The user describes their task in plain English. The mode at the time of creation determines the task's `access_category`:
+
+| Mode | Task built as |
+|---|---|
+| User mode | `access_category = 'user'` |
+| Admin mode | `access_category = 'admin'` |
+
+### 7.2 The Wizard Design Script
+
+During the conversation, the Wizard regularly consults the **Wizard Design Script** — a document that governs how the Wizard approaches task design. The correct script is loaded based on the current mode:
+
+- **User mode** → User Wizard Design Script
+- **Admin mode** → Admin Wizard Design Script
+
+The script is advisory — its findings surface as warnings or steers in the conversation, never as hard blocks. It includes guidance such as:
+
+- **Can this be done locally, without AI?** — If yes, the Wizard steers toward `ai_required = false` and a local script approach. Example: *"Which documents changed today"* is better served by a local file scan than an AI call.
+- **Does this meet safety standards?** — Surfaces a warning in the conversation if a concern is found, but the conversation continues.
+- **Is this task within scope?** — If the task requires tools or integrations beyond what is available, the Wizard responds: *"This task would need some technical setup — you might want to flag it for later."*
+
+Both Wizard Design Scripts are editable via admin tasks.
+
+### 7.3 What the Wizard Determines
+
+Through the conversation, the Wizard:
 
 1. Asks clarifying questions to fully understand the task
-2. Identifies what fields/data are needed
-3. Decides field types (text, dropdown, number, etc.)
-4. Suggests a task name and category
-5. Proposes a plain English summary
-6. Proposes session persistence behaviour
+2. Consults the appropriate Wizard Design Script at key decision points
+3. Determines whether the task requires AI (`ai_required`) or can run locally
+4. Checks whether the required local tools exist in the library (see Section 10)
+5. Identifies what fields/data are needed and decides field types
+6. Suggests a task name and display category
+7. Proposes a plain English summary
+8. Proposes session persistence behaviour
 
-This is an iterative back-and-forth until both parties are satisfied.
+### 7.4 The Review Button and Wizard Review Script
 
-### 7.2 Complexity Threshold
+When the user is happy, they click **"Review"**. The Wizard passes the complete task definition through the **Wizard Review Script** — the correct script loaded by mode:
 
-During the definition conversation, the AI assesses whether the task is within scope for a non-technical user. If the task would require custom integrations, private system access, or specialist configuration, the AI responds:
+- **User mode** → User Wizard Review Script
+- **Admin mode** → Admin Wizard Review Script
 
-> *"This task would need some technical setup to work properly — you might want to ask someone with IT experience to help configure it. Would you like to note this idea for later?"*
+This is a **hard gate**:
 
-No technical detail is given. The message is friendly and non-alarming.
+- **Passes** → task saved as `status = 'active'`, form generated, task appears in sidebar
+- **Fails** → user sees a plain English explanation and may **Save as Draft**
+- **Admin only** → can overrule a failed review and save the task as active, accepting the risk
 
-### 7.3 Confirming and Saving
+Both Wizard Review Scripts are editable via admin tasks.
 
-When Joanna is happy, she clicks **"Do it"**. The AI:
-- Passes the task through the Safety Agent
-- If safe: saves the task to SQLite, generates the form, adds to sidebar under the suggested category
-- If blocked: shows a polite plain English message with a reason, does not save
+### 7.5 Local Tool Gap Detection
 
-### 7.4 Category Management
+If the Wizard determines the task requires a local tool that does not exist in the library:
 
-The AI suggests a category during task creation. Joanna confirms or suggests an alternative. New categories are created automatically. Tasks can be moved via the cog at any time.
+1. Wizard tells the user plainly: *"I can almost do this, but I'm missing one capability. I'll flag it for review. You can save this task as a draft and come back to it once it's been sorted."*
+2. Wizard generates a **tool specification** including AI-generated JS code
+3. The tool spec lands in the admin tool approval queue (see Section 10)
+4. Task is saved as `status = 'draft'`
+5. Once admin approves the tool, the user returns to the Draft task and tries again
+
+### 7.6 Category Management
+
+The Wizard suggests a display category during task creation. The user confirms or suggests an alternative. New categories are created automatically. Tasks can be moved via the cog at any time.
 
 ---
 
@@ -265,33 +300,192 @@ Accessed via the ⚙ icon on any task view. Opens a dialog containing:
 - A conversation interface
 - An **"Update"** button
 
-Joanna converses with the AI to request changes:
-- Logic changes: *"The hotel must be within 5 miles of the location"*
-- UI changes: *"I want a dropdown for distance instead of a text box"*
-- Both: *"Actually I want restaurants, not hotels"*
-
-The AI updates the task summary in the dialog as the conversation progresses. When Joanna agrees with the updated summary, she clicks Update. The task definition, form schema, and execution instructions are all updated in SQLite. The task view re-renders immediately.
+The user converses with the AI to request changes — logic, UI, or both. The AI updates the summary draft in real time. When satisfied, clicking Update saves the revised task definition, form schema, and execution instructions to SQLite. The task view re-renders immediately.
 
 ---
 
-## 9. Task Types
+## 9. Task Types and Execution Engines
 
-The system supports multiple task types, each mapping to one or more AI tools. New types are added by registering new tools.
+### 9.1 Access Categories
 
-| Category | Examples | Tools Used |
+Every task has an `access_category` field that controls who can see and invoke it. This is separate from the `display_category` used for sidebar grouping.
+
+| Access Category | Visible In UI | Who Can Run It |
 |---|---|---|
-| Information retrieval | Hotel search, price comparison, fact lookup | `web_search` |
-| Content creation | Draft a letter, write an email, create a report | `create_document` |
-| Data processing | Calculate expenses, convert units, summarise pasted text | `calculate`, `summarise` |
-| File operations | Read a local CSV, reformat data, extract information | `read_file`, `process_data` |
-| Planning assistance | Trip itinerary, packing list, schedule suggestions | `web_search`, `calculate` |
-| Communication drafting | Compose an email (Joanna sends manually) | `create_document` |
+| `user` | Yes — in user mode and admin mode | User, admin, AI agents |
+| `admin` | Admin mode only | Admin, AI agents |
+| `agent` | Not shown in UI | AI agents and the Non-AI Agent runner only |
+
+Agents can only invoke `agent` category tasks. If an agent needs to perform something that exists only as a `user` or `admin` task, an agent-equivalent version is created and approved separately.
+
+### 9.2 Execution Engines
+
+Every task has an `ai_required` boolean field that determines which execution engine runs it.
+
+| Engine | `ai_required` | How It Runs |
+|---|---|---|
+| **AI Agent** | `true` | Calls the configured AI provider. Uses registered AI tools and agent tasks. Streams progress and results. |
+| **Non-AI Agent** | `false` | Runs a local Node.js script from the local tool library. No AI provider call. No internet required. Returns result directly. |
+
+### 9.3 The Four Combinations
+
+| | `ai_required = true` | `ai_required = false` |
+|---|---|---|
+| **`user`** | User-facing task calling the AI provider. E.g. *"What's the weather in London"*, *"Draft a letter"* | User-facing task running entirely locally. E.g. *"Which documents changed today"* |
+| **`admin`** | Admin-only AI task. E.g. testing a provider, AI-powered diagnostics | Admin-only local task. E.g. export library, view event log |
+| **`agent`** | Agent sub-task calling the AI provider. E.g. suggest a category, summarise notes | Agent sub-task running locally. E.g. *add_note*, *search_kb*, *db_read* |
+
+### 9.4 Two-Layer Pattern
+
+Agent tasks are the engine room — primitives that do one thing well. User tasks are the dashboard — friendly wrappers with good forms and plain summaries, built on top of agent tasks.
+
+```
+User Task: "Add a Note"          ← what the user sees and runs
+    └── Agent Task: add_note      ← the implementation primitive
+```
+
+This pattern applies everywhere. Admin builds agent tasks first, then builds user tasks that wrap them, then exports the finished user tasks. The user never sees the agent layer.
 
 ---
 
-## 10. Data Model
+## 10. Local Tool Library
 
-### 10.1 SQLite Tables
+### 10.1 Overview
+
+The local tool library is the registry of all tools available to the Non-AI Agent execution engine. Each tool is a Node.js function stored in the `local_tools` database table. The library grows organically — tools are added only when a real task requires them.
+
+The Wizard reads the tool library at task definition time to understand what local capabilities are available. The Non-AI Agent reads the tool library at execution time to run the appropriate tool.
+
+### 10.2 Tool Definition Format
+
+Each tool record is readable by both humans and AI:
+
+- **`name`** — snake_case identifier (e.g. `scan_folder`)
+- **`description`** — plain English. What the Wizard reads to decide if a tool is appropriate
+- **`parameters`** — JSON schema of inputs: name, type, description for each
+- **`returns`** — plain English description of what the tool returns
+- **`code`** — executable Node.js JS code, stored as text
+
+### 10.3 Built-in Tools
+
+These ship with the application, authored as TypeScript modules during development:
+
+| Tool | Description |
+|---|---|
+| `scan_folder` | Recursively scans a folder for files matching criteria (date, type, name pattern) |
+| `read_file` | Reads the text content of a local file |
+| `write_file` | Writes or appends text to a local file |
+| `obsidian_add` | Writes a new markdown note to the configured Obsidian vault folder |
+| `obsidian_search` | Searches file contents across the Obsidian vault folder |
+| `calculate` | Performs arithmetic and unit conversion |
+| `db_read` | Safe read-only queries against the SQLite database |
+| `approve_tool` | Sets a local tool's status to `approved` in the `local_tools` table |
+| `set_config` | Updates a key/value pair in `app_config` |
+| `set_api_key` | Stores an API key securely via Electron `safeStorage` |
+| `open_file_dialog` | Opens a native Windows file picker and returns the selected file path |
+| `export_file` | Opens a native Windows save dialog and writes content to the chosen path |
+| `read_json_file` | Reads and parses a JSON file from a given path |
+
+DB access tools (`db_read`, `approve_tool`, `set_config`, `set_api_key`) are available only to `admin` and `agent` category tasks.
+
+### 10.4 Tool Gap Detection and Approval Flow
+
+When the Wizard identifies that a task requires a local tool that does not exist:
+
+1. Wizard informs the user a capability is missing and saves the task as Draft
+2. Wizard generates a complete tool spec including AI-generated JS code
+3. Tool spec placed in the **Admin Tool Approval Queue** — an admin task that queries `local_tools WHERE status = 'pending_review'`
+4. Admin reviews the name, description, parameters, return value, and code — edits if needed
+5. Admin runs the approve task → tool inserted into `local_tools` with `status = 'approved'`
+6. User returns to the Draft task, re-opens Wizard, tries again — tool now exists, task completes
+
+### 10.5 Agent Task Library
+
+Agent tasks (tasks with `access_category = 'agent'`) form a parallel library to local tools. Like local tools, they:
+
+- Are reviewed and approved before use
+- Grow organically based on real need
+- Are built through the same Wizard flow (in admin mode)
+- Are visible in admin mode in the sidebar
+
+The agent task library and the local tool library together form the full capability set available to the execution engines.
+
+---
+
+## 11. Agent Task Invocation
+
+### 11.1 Dynamic Tool Registration
+
+Before any AI interaction begins, the app reads all `approved` agent tasks from the tasks table and registers each one as a tool with the Vercel AI SDK alongside the built-in tools (e.g. `web_search`):
+
+| Field | Source |
+|---|---|
+| `name` | Task name (snake_case) |
+| `description` | Task intent / plain_summary — what the AI reads to decide when to use it |
+| `parameters` | Derived from the task's `form_schema` fields |
+| `execute()` | Function that runs the agent task and returns the result |
+
+The AI then calls agent tasks naturally as part of its reasoning — no special invocation syntax.
+
+### 11.2 The Execute Function
+
+| Agent task type | What `execute()` does |
+|---|---|
+| `ai_required = true` | Makes a nested AI call using the agent task's execution instructions and provided inputs |
+| `ai_required = false` | Runs the appropriate local tool script and returns the result |
+
+From the calling AI's perspective, both types behave identically — inputs in, result out.
+
+### 11.3 Dynamic Library
+
+Newly approved agent tasks are automatically available at the next AI interaction — no code changes required. The library expands transparently as tasks are approved.
+
+### 11.4 Depth Limit
+
+To prevent circular calls or infinite loops, agent task invocation is limited to a maximum depth of **3 levels**. An agent task that attempts to call beyond this limit fails gracefully with an internal log entry.
+
+---
+
+## 12. Knowledge Base Integration
+
+### 12.1 Obsidian as the Knowledge Base
+
+Obsidian is the designated personal knowledge base. It is free, local-first, and stores notes as plain markdown (`.md`) files in a vault folder on disk. The user browses, searches, and reads notes using the Obsidian desktop application.
+
+JLH Desktop writes to the knowledge base by creating `.md` files in the vault folder directly — no Obsidian API, no dependency on Obsidian being open.
+
+### 12.2 Configuration
+
+The Obsidian vault folder path is set via an admin task and stored in `app_config` under `obsidian_vault_path`. All knowledge base tools read this path at runtime.
+
+### 12.3 Two-Layer Knowledge Base Tasks
+
+Knowledge base functionality follows the standard two-layer pattern:
+
+**Agent tasks (primitives — `access_category = 'agent'`, `ai_required = false`):**
+
+| Agent Task | What It Does |
+|---|---|
+| `add_note` | Writes a new `.md` file to the vault |
+| `search_kb` | Searches file contents across the vault |
+| `read_note` | Reads and returns the content of a named note |
+
+**User tasks (friendly wrappers — `access_category = 'user'`):**
+
+| User Task | Underlying Agent Task | `ai_required` |
+|---|---|---|
+| Add a Note | `add_note` | `false` |
+| Search My Notes | `search_kb` | `false` |
+| Read a Note | `read_note` | `false` |
+| Summarise Notes on a Topic | `search_kb` + AI summarisation | `true` |
+
+Admin builds the agent tasks first, then builds and exports the user tasks. Joanna runs the user tasks without ever seeing the agent layer.
+
+---
+
+## 13. Data Model
+
+### 13.1 SQLite Tables
 
 **`tasks`**
 
@@ -299,12 +493,16 @@ The system supports multiple task types, each mapping to one or more AI tools. N
 |---|---|---|
 | id | TEXT (UUID) | Unique identifier |
 | name | TEXT | Display name (e.g. "Find a Hotel") |
-| category | TEXT | Sidebar category |
-| plain_summary | TEXT | Joanna-facing plain English description |
+| version | INTEGER | Increments on every save. Used for export/import conflict resolution. |
+| display_category | TEXT | Sidebar grouping (e.g. "Travel", "Work") |
+| access_category | TEXT | Access control: `user`, `admin`, or `agent` |
+| ai_required | INTEGER | Boolean — 1 if AI provider call required, 0 if local execution |
+| status | TEXT | `draft` or `active` |
+| plain_summary | TEXT | User-facing plain English description |
 | intent | TEXT | AI-facing description of task purpose |
 | constraints | TEXT (JSON) | Rules and restrictions |
 | form_schema | TEXT (JSON) | Field definitions for form rendering |
-| execution_instructions | TEXT (JSON) | How the AI should execute the task |
+| execution_instructions | TEXT (JSON) | How the task should execute |
 | tools_required | TEXT (JSON) | List of tool names needed |
 | retain_last_session | INTEGER | Boolean — 1 or 0 |
 | last_inputs | TEXT (JSON) | Field values from last run |
@@ -316,19 +514,35 @@ The system supports multiple task types, each mapping to one or more AI tools. N
 
 ---
 
-**`documents`**
-
-Stores persistent text documents and scripts used by the application. The list grows on demand — only what is needed is added.
+**`local_tools`**
 
 | Column | Type | Description |
 |---|---|---|
 | id | TEXT (UUID) | Unique identifier |
-| name | TEXT | Human-readable name (e.g. "User Safety Rules") |
-| doc_type | TEXT | Category: `safety_rule`, `system_prompt`, `script`, `template` |
-| context | TEXT | Who it applies to: `admin`, `user`, `system` |
+| name | TEXT | Snake_case tool identifier — unique |
+| version | INTEGER | Increments on each approved change |
+| description | TEXT | Plain English — what the AI reads to decide if this tool fits |
+| parameters | TEXT (JSON) | Input schema: name, type, description for each parameter |
+| returns | TEXT | Plain English description of what the tool returns |
+| code | TEXT | Executable Node.js JS code |
+| status | TEXT | `pending_review`, `approved`, `disabled` |
+| ai_generated | INTEGER | Boolean — 1 if AI-generated, 0 if hand-written |
+| created_at | TEXT | ISO timestamp |
+| approved_at | TEXT | ISO timestamp (null until approved) |
+
+---
+
+**`documents`**
+
+| Column | Type | Description |
+|---|---|---|
+| id | TEXT (UUID) | Unique identifier |
+| name | TEXT | Human-readable name |
+| doc_type | TEXT | `safety_rule`, `system_prompt`, `script`, `template` |
+| context | TEXT | `admin`, `user`, `system` |
 | content | TEXT | The document content |
 | format | TEXT | `text`, `markdown`, `prompt`, `json` |
-| is_editable | INTEGER | Boolean — whether editable via admin page |
+| is_editable | INTEGER | Boolean |
 | version | INTEGER | Increments on each save |
 | created_at | TEXT | ISO timestamp |
 | updated_at | TEXT | ISO timestamp |
@@ -337,16 +551,16 @@ Stores persistent text documents and scripts used by the application. The list g
 
 | Name | doc_type | context | Notes |
 |---|---|---|---|
-| User Safety Rules | `safety_rule` | `user` | Rules applied by the Safety Agent in user mode |
-| Admin Safety Rules | `safety_rule` | `admin` | Rules applied by the Safety Agent in admin mode |
-
-Further documents added as the need arises.
+| User Safety Rules | `safety_rule` | `user` | Applied by Safety Agent in user mode |
+| Admin Safety Rules | `safety_rule` | `admin` | Applied by Safety Agent in admin mode |
+| User Wizard Design Script | `script` | `user` | Advisory guidelines for Wizard in user mode — includes local-vs-AI assessment, safety checks, scope checks |
+| Admin Wizard Design Script | `script` | `admin` | Advisory guidelines for Wizard in admin mode — looser rules reflecting admin capabilities |
+| User Wizard Review Script | `script` | `user` | Hard-gate review at save time for user-mode tasks |
+| Admin Wizard Review Script | `script` | `admin` | Hard-gate review at save time for admin-mode tasks |
 
 ---
 
 **`event_log`**
-
-Records application events for debugging, auditing, and usage insight. The event type list grows on demand — only what is needed is added.
 
 | Column | Type | Description |
 |---|---|---|
@@ -356,14 +570,12 @@ Records application events for debugging, auditing, and usage insight. The event
 | severity | TEXT | `info`, `warning`, `error` |
 | payload | TEXT (JSON) | Full event detail — structure varies by event type |
 
-**Starting event types (minimum set):**
+**Starting event types:**
 
 | Event Type | Trigger | Payload includes |
 |---|---|---|
-| `ai_interaction` | Every AI API call | interaction_type, mode (admin/user), messages sent, response, model, provider, tokens used, duration, tools called |
+| `ai_interaction` | Every AI API call | interaction_type, mode, messages, response, model, provider, tokens, duration, tools called |
 | `error` | Any caught application failure | context, message, stack (internal only) |
-
-Further event types added as the need arises.
 
 ---
 
@@ -382,10 +594,13 @@ Further event types added as the need arises.
 | `ai_provider` | Active AI provider (e.g. `anthropic`, `openai`) |
 | `ai_model` | Active model identifier (e.g. `claude-sonnet-4-6`) |
 | `app_mode` | Current mode: `user` or `admin` |
+| `obsidian_vault_path` | Absolute path to the Obsidian vault folder |
 
 ---
 
-### 10.2 Form Schema Format (JSON)
+### 13.2 Form Schema Format (JSON)
+
+Field types supported:
 
 ```json
 {
@@ -410,77 +625,89 @@ Further event types added as the need arises.
       "options": ["1 mile", "2 miles", "5 miles", "10 miles"],
       "required": false,
       "default": "5 miles"
+    },
+    {
+      "id": "import_file",
+      "type": "file",
+      "label": "Import file",
+      "description": "Select the .json export file to import",
+      "required": true
     }
   ],
   "results_display": "text_area"
 }
 ```
 
+Supported field types: `text`, `number`, `select`, `date`, `file`.
+
 ---
 
-## 11. AI Interaction Model
+## 14. AI Interaction Model
 
-There are four distinct AI interactions, each with a separate system prompt and context package. All interactions are logged as `ai_interaction` events.
+There are four distinct AI interaction types, each with a separate system prompt and context package. All interactions are logged as `ai_interaction` events.
 
-### 11.1 Task Definition
+### 14.1 Task Definition (Wizard)
 
 ```
 System prompt:
-  "You are helping a non-technical user define a reusable task.
-   Understand what they want, identify required fields, suggest a
-   category and session persistence behaviour, and produce a form
-   schema and plain English summary. Ask clarifying questions until
-   the task is well defined. Write all summaries in plain, friendly
-   English suitable for a non-technical user."
+  "You are helping a user define a reusable task.
+   Consult the Wizard Design Script at key decision points.
+   Determine whether the task can run locally (ai_required = false)
+   or needs AI. Check the local tool library for available tools.
+   Check the agent task library for available agent tasks.
+   Identify required fields, suggest categories and session
+   persistence behaviour, and produce a form schema and plain
+   English summary. Write all summaries in plain, friendly English."
 
 Context passed:
   - Conversation history
+  - Wizard Design Script (user or admin variant, from documents table)
+  - Local tool library manifest (names, descriptions, parameters)
+  - Agent task library manifest (names, descriptions, parameters)
+  - Current app mode
 ```
 
-Output: plain summary, category suggestion, form schema JSON, execution instructions JSON, `retain_last_session` recommendation.
+Output: plain summary, category suggestions, `ai_required` value, form schema JSON, execution instructions JSON, `retain_last_session` recommendation. If a tool gap is found: tool specification and generated tool code.
 
-### 11.2 Task Execution (Go)
+### 14.2 Task Execution — AI Agent
 
 ```
 System prompt:
-  "You are executing a saved task on behalf of a non-technical user.
-   Use the tools available. Follow the execution instructions.
-   Stream progress updates as you work. Return results in a clear,
-   plain English format."
+  "You are executing a saved task. Use the tools available.
+   Follow the execution instructions. Stream progress updates
+   as you work. Return results in clear, plain English."
 
 Context passed:
-  - Task intent
-  - Constraints
-  - Execution instructions
-  - Field values (from form)
-  - Available tools
+  - Task intent, constraints, execution instructions
+  - Field values from the form
+  - Available AI tools (web_search etc.)
+  - Available agent tasks (dynamically registered from tasks table)
 ```
 
-Output: streamed progress updates, then final results displayed in the task view results area.
+Output: streamed progress updates, then final results in the task view results area.
 
-### 11.3 Task Refinement (Cog)
+### 14.3 Task Refinement (Cog)
 
 ```
 System prompt:
-  "You are helping refine an existing saved task. The user wants to
-   make changes. Update the plain summary, form schema, and execution
-   instructions to reflect the requested changes. Show the user the
-   updated summary and confirm before finalising."
+  "You are helping refine an existing saved task. Update the plain
+   summary, form schema, and execution instructions to reflect the
+   requested changes. Show the updated summary and confirm before
+   finalising."
 
 Context passed:
   - Full current task record
   - Refinement conversation history
-  - User's latest request
 ```
 
 Output: updated plain summary, form schema JSON, execution instructions JSON.
 
-### 11.4 Safety Agent
+### 14.4 Safety Agent
 
 ```
 System prompt:
-  [Loaded from the documents table — either 'Admin Safety Rules'
-   or 'User Safety Rules' depending on current app mode]
+  [Loaded from documents table — User Safety Rules or Admin Safety
+   Rules depending on current mode]
 
   "Assess whether the provided content is safe, legal, ethical, and
    appropriate. Return a structured result. Never expose your
@@ -488,132 +715,247 @@ System prompt:
 
 Context passed:
   - Task definition, field inputs, or results being reviewed
-  - Current app mode (admin / user)
+  - Current app mode
 ```
 
-**Output on pass:** `SAFE` — no further action.
+**On pass:** `SAFE` — no further action.
 
-**Output on fail:** Three values returned:
-- `UNSAFE`
-- **User-facing reason** — plain English, shown to Joanna: *"I'm not able to help with that because [friendly reason]."*
-- **Internal reason** — full detail, logged in `event_log` only, never shown to Joanna
+**On fail:** Returns `UNSAFE` + user-facing plain English reason + internal reason (logged only).
 
 ---
 
-## 12. Safety and Guardrails
+## 15. Safety and Guardrails
 
-### 12.1 Three-Tier Safety Model
-
-Safety is enforced in layers:
+### 15.1 Three-Tier Safety Model
 
 | Tier | Name | Defined By | Can Be Changed |
 |---|---|---|---|
-| 1 | AI provider's own rules | AI provider (e.g. Anthropic) | No — absolute floor, cannot be overridden |
-| 2 | Admin safety rules | Owner, via admin page | Yes — stored in `documents` table |
-| 3 | User safety rules | Owner, via admin page | Yes — stored in `documents` table |
+| 1 | AI provider's own rules | AI provider | No — absolute floor |
+| 2 | Admin safety rules | Owner, via admin task | Yes — in `documents` table |
+| 3 | User safety rules | Owner, via admin task | Yes — in `documents` table |
 
-Tier 1 is intrinsic to the AI provider and always active regardless of any instructions. Tiers 2 and 3 are defined and maintained by the owner and applied by the Safety Agent depending on the current app mode.
-
-*Note: A fourth tier ("AI's own safety rules" as a distinct application-level concept) has been identified as a future consideration and will be defined when requirements are clearer.*
-
-### 12.2 Safety Agent Trigger Points
-
-The Safety Agent runs silently at three points in every session:
+### 15.2 Safety Agent Trigger Points
 
 1. **Task definition** — before any new task is saved
-2. **Before Go** — before task execution, reviewing live field inputs against the active rules
-3. **Result display** — screening AI output before it is shown to the user
+2. **Before Go** — reviewing live field inputs before execution
+3. **Result display** — screening AI output before it is shown
 
-### 12.3 Mode and Rules
+### 15.3 Mode and Rules
 
 | App Mode | Safety Rules Applied |
 |---|---|
 | User mode | User Safety Rules (Tier 3) |
 | Admin mode | Admin Safety Rules (Tier 2) |
 
-Both tiers always operate on top of the AI provider's intrinsic rules (Tier 1).
+### 15.4 On Failure
 
-### 12.4 On Failure
+- Action blocked
+- User sees a friendly plain English message
+- Full internal reason written to `event_log` (severity `warning`)
+- No technical detail ever shown to the user
 
-When the Safety Agent returns `UNSAFE`:
-- The action is blocked
-- Joanna sees a friendly plain English message with a reason — e.g. *"I'm not able to help with that because it involves finding personal information about another person."*
-- The full internal reason is written to the `event_log` (`ai_interaction` event, severity `warning`)
-- No technical detail is ever shown to Joanna
+### 15.5 Updating Safety Rules
 
-### 12.5 Updating Safety Rules
-
-Both rule sets are stored in the `documents` table and editable via the admin page using the same conversation + Update pattern as the cog refinement flow. Changes take effect immediately on the next Safety Agent call.
+Both rule sets stored in `documents` table, editable via admin tasks using the same conversation + Update pattern as the cog refinement flow.
 
 ---
 
-## 13. Admin Page
+## 16. Admin Capabilities
 
-**Access:** `Ctrl+Shift+A` — no visible button or menu item. Switches the app into admin mode.
-**Not visible to or accessible by Joanna.**
+### 16.1 What Admin Mode Is
 
-Contains:
+Admin mode is a capability level, not a secret. The user (Joanna) is aware it exists and may grow into using it herself over time. It is accessed via `Ctrl+Shift+A`.
 
-| Section | Purpose |
+In admin mode:
+- All task categories are visible (`user`, `admin`, `agent`)
+- Tasks created are saved as `access_category = 'admin'`
+- Admin Wizard Design/Review Scripts apply
+- The Wizard Review Script can be overruled to force-save a task
+
+### 16.2 The Minimal Admin UI
+
+The only UI that cannot be a task is:
+
+| Element | Why it must be UI |
 |---|---|
-| **AI provider** | Select provider (e.g. Anthropic, OpenAI) and model. Stored in `app_config`. One place to swap the AI — no code changes needed. |
-| **API keys** | AI provider API key, search API key — stored via `safeStorage`, never in code or config files. |
-| **User Safety Rules** | Review and update via AI conversation. Loaded from `documents` table. |
-| **Admin Safety Rules** | Review and update via AI conversation. Loaded from `documents` table. |
-| **Complexity threshold** | Review and update the guidelines the AI uses to flag overly complex tasks. |
-| **App diagnostics** | Version, total task count, event log viewer. |
+| Mode switch (`Ctrl+Shift+A`) | Must exist before any task can run |
+| API key entry | Requires secure input — backed by Electron `safeStorage` |
 
-Safety rule sections use the same conversation + Update pattern as the cog refinement flow. The admin converses with the AI to refine the rules, reviews the updated draft, and clicks Update to save back to the `documents` table.
+Everything else is an admin task.
+
+### 16.3 Admin Tasks (Built-in)
+
+These admin tasks ship with the application:
+
+| Task | Description | `ai_required` |
+|---|---|---|
+| Set AI Provider | Update `ai_provider` and `ai_model` in `app_config` | `false` |
+| Set Obsidian Vault Path | Update `obsidian_vault_path` in `app_config` | `false` |
+| Review Pending Tools | Query `local_tools WHERE status = 'pending_review'`, review and approve | `false` |
+| Edit Safety Rules | Conversational update of User or Admin Safety Rules document | `true` |
+| Edit Wizard Design Script | Conversational update of User or Admin Wizard Design Script | `true` |
+| Edit Wizard Review Script | Conversational update of User or Admin Wizard Review Script | `true` |
+| View Event Log | Query and display `event_log` entries with filters | `false` |
+| App Diagnostics | Display version, task count, tool count, database size | `false` |
+| Export Library | Export selected entities to a JSON file | `false` |
+| Import Library | Import entities from a JSON file with conflict resolution | `false` |
 
 ---
 
-## 14. Future Considerations (Out of Scope for V1)
+## 17. Export and Import
+
+### 17.1 Purpose
+
+The export/import system allows tasks, tools, and documents to be moved between instances of JLH Desktop. Both are admin tasks (`access_category = 'admin'`, `ai_required = false`).
+
+The primary driver is the local tool and agent task libraries — built and approved on one machine, distributed to others. Admin also builds and curates user-facing tasks on their machine and distributes them to the user's machine via export/import.
+
+### 17.2 Two-Machine Workflow
+
+| Machine | Role |
+|---|---|
+| **Admin machine** | Authoring environment. Builds agent tasks, local tools, user tasks. Tests and approves. Exports. |
+| **User's machine** | Consumption environment. Imports. Runs. |
+
+### 17.3 Exportable Entities
+
+| Entity | Exported | Notes |
+|---|---|---|
+| Tasks | Yes | All access categories |
+| Local tools | Yes | `approved` status only |
+| Documents | Yes | All documents |
+| `app_config` | No | Machine-specific — never exported |
+
+Admin selects which entities to include via checkboxes in the export task form. Export produces a single JSON file via a native save dialog.
+
+### 17.4 Export File Format
+
+```json
+{
+  "export_version": "1",
+  "exported_at": "2026-02-21T14:30:00Z",
+  "source_app_version": "1.0.0",
+  "entities": {
+    "tasks": [ ],
+    "local_tools": [ ],
+    "documents": [ ]
+  }
+}
+```
+
+Each entity includes its `id` (GUID) and `version` integer.
+
+### 17.5 Import Logic
+
+| Situation | Action |
+|---|---|
+| GUID not found locally | Import — create new |
+| GUID found, same version | Skip — already up to date |
+| GUID found, imported version newer | Update local with imported version |
+| GUID found, local version newer | Admin chooses: **skip** or **accept** |
+
+### 17.6 Import Flow
+
+The import task uses an agent task to handle conflict resolution conversationally:
+
+1. Admin selects import file via file picker in the task form
+2. Go is pressed — agent analyses file against local DB and returns a plain English preview in the results area:
+
+```
+Import preview — 16 entities found
+
+  ✦ 5 new tasks           → will be imported
+  ✦ 3 new local tools     → will be imported
+  ✓ 5 already up to date  → no action
+
+  ⚠ 1 conflict (your version is newer):
+      Local Tool: "Scan Folder"  your v4 vs imported v3
+
+  Type  proceed  to import (conflict skipped by default)
+  or  accept scan_folder  to take the imported version
+  or  cancel  to abort.
+```
+
+3. Admin types a response in the follow-up input
+4. Agent interprets the response and commits or aborts
+
+Conflicts default to **skip** (safe). Admin can explicitly accept individual conflicts by name.
+
+### 17.7 Import Routing
+
+Entities are routed automatically on import by their `access_category` field — no manual selection needed:
+
+- `user` tasks → user library (visible to all)
+- `admin` tasks → admin library (admin mode only)
+- `agent` tasks → agent library (not shown in UI)
+
+### 17.8 Dependency Resolution
+
+If a task being imported requires a local tool that is not present locally and not in the import file:
+
+> *"Task 'Scan Changed Documents' requires the tool `scan_folder` which is not in this import. The task will be imported as Draft until the tool is available."*
+
+If the required tool is in the import file it is imported automatically alongside the task.
+
+### 17.9 Versioning
+
+All exportable entities carry a GUID (`id`) and integer `version`. These two fields together uniquely identify any specific revision across all instances:
+
+- `tasks` — `id` + `version`
+- `local_tools` — `id` + `version`
+- `documents` — `id` + `version`
+
+---
+
+## 18. Future Considerations (Out of Scope for V1)
 
 | Feature | Notes |
 |---|---|
-| Export / import tasks | Serialise a task record to JSON file. Import reverses this. No architectural changes needed — add when required. |
 | Cloud sync | Out of scope. SQLite local only for V1. |
 | Result export | Copy to clipboard, save as PDF, email. Add per task type as needed. |
 | Additional tool types | New task categories added by registering new AI tools. |
-| Multi-user support | Not required. Single user (Joanna) on a single machine. |
+| Multi-user support | Not required for V1. Single primary user on a single machine. |
 | AI's own application-level safety rules | Identified as a future concept — requirements to be defined. |
+| Local tool historical versioning | V1 retains current version only. |
+| Arbitrary script generation | V1 uses a registered tool library. Generating and executing arbitrary user-defined scripts is a future consideration. |
+| Task-defined response UI | During task creation, the Wizard agrees a set of response controls (buttons: proceed/cancel/yes/no) that render in the results area instead of a plain text follow-up input. Simple button types first, more complex controls later. |
 
 ---
 
-## 15. Non-Functional Requirements
+## 19. Non-Functional Requirements
 
-- **Performance:** App must feel responsive. AI API calls should show a clear loading indicator with streamed progress. Long-running tasks must not block the UI.
+- **Performance:** App must feel responsive. AI API calls show a clear loading indicator with streamed progress. Long-running tasks must not block the UI.
+- **Event logging:** Event log writes must be **non-blocking** — queued and written in the background. Never on the critical path of any user action.
 - **Reliability:** SQLite writes must be transactional — no partial saves.
-- **Security:** API keys stored via `safeStorage` only, never in source code or logs. The AI never receives more context than needed for each interaction.
-- **Usability:** Every user-facing message must be plain English. No technical error messages shown to Joanna. All errors are caught and presented as friendly, actionable guidance.
-- **Maintainability:** Task types and tools are registered in a central configuration. Adding a new task type requires no changes to core application logic. AI provider can be swapped via the admin page without code changes.
+- **Security:** API keys stored via `safeStorage` only. The AI never receives more context than needed. AI-generated tool code requires admin approval before execution. DB write tools available to admin/agent tasks only.
+- **Usability:** Every user-facing message must be plain English. No technical error messages shown to the user. All errors caught and presented as friendly, actionable guidance.
+- **Maintainability:** Task types and tools registered in central configuration. Adding a new task type requires no changes to core logic. AI provider swapped via admin task without code changes.
 
 ---
 
-## 16. Minimum PC Specification
-
-These are the minimum requirements for running the final packaged application on any target machine (including the Win10 machine).
+## 20. Minimum PC Specification
 
 | Component | Minimum | Recommended |
 |---|---|---|
-| **Operating System** | Windows 10 version 1809 (October 2018 Update) | Windows 10 version 21H2 or later / Windows 11 |
-| **Architecture** | x64 (64-bit) only — 32-bit not supported | x64 |
+| **Operating System** | Windows 10 version 1809 (October 2018 Update) | Windows 10 21H2 or later / Windows 11 |
+| **Architecture** | x64 (64-bit) only | x64 |
 | **RAM** | 4 GB | 8 GB |
 | **Storage** | 600 MB free (app ~300 MB + database growth) | 1 GB free |
-| **Display** | 1280 × 720 minimum resolution | 1920 × 1080 |
-| **Internet** | Required for task execution (AI provider API + web search) | Stable broadband |
-| **CPU** | Any x64 processor (2 cores, ~2 GHz) | 4 cores |
-| **GPU** | None required — Electron can run in software rendering mode | Any |
+| **Display** | 1280 × 720 | 1920 × 1080 |
+| **Internet** | Required for AI tasks | Stable broadband |
+| **CPU** | Any x64 (2 cores, ~2 GHz) | 4 cores |
+| **GPU** | None required | Any |
 
 ### Notes
 - **No Node.js required** on the target machine. The packaged `.exe` is fully self-contained.
-- **No Office/Word required.** JLH Desktop is entirely independent of JLH (the Word add-in).
-- **Internet is required at runtime** for any task that uses the AI provider API or web search. The app can be opened and tasks browsed offline, but pressing "Go" will fail gracefully with a friendly message if no connection is available.
-- **Windows 10 build version** — check via `Settings → System → About → OS Build`. Must be 17763 or higher (build number for version 1809).
+- **No Office/Word required.** JLH Desktop is entirely independent of the JLH Word add-in.
+- **Obsidian** must be separately installed if the user wishes to browse the knowledge base. JLH Desktop does not require Obsidian to be open to write notes.
+- **Non-AI tasks run offline.** Internet is only required for tasks where `ai_required = true`.
+- **Windows 10 build** — must be 17763 or higher (`Settings → System → About → OS Build`).
 
 ---
 
-## 17. Platform Compatibility
+## 21. Platform Compatibility
 
 ### Development Machine
 Windows 11 laptop. All development and testing happens here first.
@@ -625,32 +967,29 @@ Windows 10 desktop (older hardware). The final application must run correctly on
 
 | Area | Detail |
 |---|---|
-| **Electron** | Supports Windows 10 (1809 / October 2018 update) and later. Confirm Win10 build version on target machine before first run. |
-| **WebView2** | Not a dependency — Electron bundles its own Chromium. The WebView2 issues affecting JLH (the Word add-in) do not apply here. |
-| **SQLite native bindings** | `better-sqlite3` compiles against the Node.js version bundled with Electron. Handled automatically by the build process — no manual steps on target machine. |
-| **Windows Defender SmartScreen** | An unsigned `.exe` will trigger a "Windows protected your PC" warning on first run. Joanna must click "More info → Run anyway". Expected behaviour for a personal unsigned app. |
-| **Performance** | Electron embeds a full Chromium instance. Target machine should have a minimum of 4GB RAM. Cold start may be slower than on development machine. |
-| **Network / Firewall** | Outbound HTTPS calls to the AI provider API and web search API must not be blocked. Verify on the target machine's specific network before deployment. |
-| **Visual C++ Redistributables** | May be required by native modules. Bundle within the installer or verify pre-installed on target machine. |
+| **Electron** | Supports Windows 10 (1809) and later. Confirm Win10 build version before first run. |
+| **WebView2** | Not a dependency — Electron bundles its own Chromium. WebView2 issues affecting the JLH Word add-in do not apply here. |
+| **SQLite native bindings** | `better-sqlite3` compiles against the Node.js version bundled with Electron. Handled automatically by the build process. |
+| **Windows Defender SmartScreen** | An unsigned `.exe` triggers a "Windows protected your PC" warning on first run. Click "More info → Run anyway". Expected for a personal unsigned app. |
+| **Performance** | Electron embeds a full Chromium instance. Minimum 4GB RAM. Cold start may be slower on the Win10 machine. |
+| **Network / Firewall** | Outbound HTTPS to the AI provider API and search API must not be blocked. Verify on the target network. |
+| **Visual C++ Redistributables** | May be required by native modules. Bundle in the installer or verify pre-installed. |
 
 ### Build & Distribution
-The final `.exe` is produced using **electron-builder** or **electron-forge**, generating a self-contained Windows installer. No Node.js installation required on the target machine. The installer handles all dependencies.
+Final `.exe` produced using **electron-builder** or **electron-forge**. Self-contained Windows installer. No Node.js required on the target machine.
 
 ---
 
-## 18. Companion Test Harness
+## 22. Companion Test Harness
 
-Before building the main Electron application, a lightweight **CLI test harness** is developed and run on both machines. This de-risks the environment and proves the core technical mechanic before any UI work begins.
+Before building the main Electron application, a lightweight **CLI test harness** is developed and run on both machines.
 
 ### Purpose
-
-- Verify all external dependencies work on both Windows 11 (dev) and Windows 10 (target)
-- Prove the core loop — conversation → JSON schema → tool execution — before committing to the full build
-- Identify environment-specific failures early (network, API keys, native modules)
+- Verify all external dependencies work on both machines
+- Prove the core loop before committing to the full build
+- Identify environment-specific failures early
 
 ### Structure
-
-A small standalone TypeScript project. Runs from the command line with Node.js. No Electron, no UI.
 
 ```
 jlh-desktop-harness/
@@ -672,30 +1011,27 @@ jlh-desktop-harness/
 | Test | What It Proves |
 |---|---|
 | `test-ai-api` | Network connectivity, API key valid, basic response received |
-| `test-ai-json` | AI reliably returns parseable, valid JSON schema from a prompt |
+| `test-ai-json` | AI reliably returns parseable, valid JSON schema |
 | `test-ai-tools` | Tool use works — AI correctly invokes a registered tool |
 | `test-search-api` | Search API key valid, results returned |
 | `test-sqlite` | Native bindings compile correctly, CRUD operations succeed |
 | `test-core-loop` | Full sequence: conversation → JSON schema → field values → tool call → result |
 
 ### Pass Criteria
-
-All six tests must pass on **both machines** before Electron development begins. Any failure on the Win10 machine is resolved before proceeding.
+All six tests must pass on **both machines** before Electron development begins.
 
 ### Output
-
-Each test prints a clear PASS / FAIL with a one-line reason. No technical stack traces visible at the summary level — detail available on request via a `--verbose` flag.
+Each test prints PASS / FAIL with a one-line reason. Detail available via `--verbose`.
 
 ---
 
-## 19. Build Order
+## 23. Build Order
 
 Development proceeds in phases. Each phase has a clear exit criterion — the next phase does not begin until it is met.
 
 ### Phase 0 — Companion Test Harness
-*(Pre-build environment validation)*
 
-Build and run the CLI test harness on both the Win11 development machine and the Win10 target machine.
+Build and run the CLI test harness on both machines.
 
 **Exit criterion:** All six harness tests pass on both machines.
 
@@ -703,95 +1039,118 @@ Build and run the CLI test harness on both the Win11 development machine and the
 
 ### Phase 1 — Project Skeleton
 
-Set up the Electron + TypeScript + React project. No application logic yet.
-
 - Electron window launches
 - Basic sidebar (hardcoded, no data)
-- Main area placeholder
-- SQLite connected, `tasks`, `documents`, `event_log`, and `app_config` tables created
-- AI provider connected — basic call confirmed working within Electron context
+- SQLite connected — all tables created (`tasks`, `local_tools`, `documents`, `event_log`, `app_config`)
+- Starting documents seeded (six Wizard/Safety documents)
+- Built-in local tools seeded in `local_tools`
+- AI provider connected — basic call confirmed
 
-**Exit criterion:** App launches on both machines. SQLite file created. AI provider responds to a test call.
-
----
-
-### Phase 2 — Core Mechanic (Highest Priority)
-
-Prove the fundamental loop works before building anything around it. Hardcoded conversation — no dynamic task definition yet.
-
-- AI receives a fixed prompt and returns a valid form schema JSON
-- App reads the JSON and renders a real form (correct field types, labels, descriptions)
-- "Go" button submits field values to the AI with a fixed execution instruction
-- AI calls the web search tool, streams progress, returns results
-- Results displayed in the main area
-
-**Exit criterion:** A hardcoded hotel search form renders correctly. Filling in location and budget and pressing Go returns real hotel suggestions. Proves the loop end to end.
+**Exit criterion:** App launches on both machines. SQLite created with all tables and seed data. AI provider responds.
 
 ---
 
-### Phase 3 — Task Definition Flow
+### Phase 2 — Core Mechanic
 
-Make Phase 2 dynamic — driven by a real AI conversation.
+Hardcoded — no dynamic task definition yet.
 
-- "+ New Task" opens a conversation view
-- AI asks "How can I help?" and conducts the full definition dialogue
-- AI produces form schema, plain summary, category suggestion, session persistence recommendation
-- Joanna confirms → "Do it" saves task to SQLite
-- Task appears in sidebar under the correct category
+- AI receives a fixed prompt, returns a valid form schema JSON
+- App renders a real form from the JSON
+- "Go" submits field values to AI with a fixed execution instruction
+- AI calls web search tool, streams progress, returns results
+- Results displayed
 
-**Exit criterion:** A real task is defined through conversation, saved to SQLite, and visible in the sidebar with correct category.
+**Exit criterion:** A hardcoded hotel search form renders. Filling in location and budget and pressing Go returns real hotel suggestions.
+
+---
+
+### Phase 3 — Task Definition Flow (The Wizard)
+
+- "+ New Task" opens conversation view
+- Wizard consults correct Wizard Design Script by mode
+- Wizard steers toward local execution when appropriate
+- Wizard checks local tool and agent task libraries
+- Joanna clicks "Review" → correct Wizard Review Script runs as hard gate
+- Pass: task saved as active. Fail: save as Draft. Admin: can overrule.
+- Task appears in sidebar under correct category
+
+**Exit criterion:** A real task defined through conversation, saved as active, visible in sidebar.
 
 ---
 
 ### Phase 4 — Task Execution and Results
 
-Wire up the full execution layer properly.
+- AI Agent execution: Tavily integrated, streamed progress, results displayed
+- Non-AI Agent execution: local tools invoked, result returned
+- Agent task invocation: agent tasks registered dynamically as AI SDK tools
+- Input validation before Go
+- Follow-up input active after results
+- Session persistence working
 
-- Tavily Search API integrated as a registered AI tool
-- Input validation before Go (AI checks fields, asks Joanna to clarify if needed)
-- Results displayed cleanly below the form with streamed progress
-- Follow-up question input active after results shown
-- Session persistence (`retain_last_session`) working — last inputs and results restored on reopen, "New" button clears them
-
-**Exit criterion:** Full hotel search task works end to end on both machines. Results display correctly. Follow-up questions work. Session is retained and clearable.
+**Exit criterion:** Hotel search (AI Agent), file scan (Non-AI Agent), and a task using an agent task all work end to end on both machines.
 
 ---
 
 ### Phase 5 — Task Refinement (Cog)
 
-- Cog icon opens refinement dialog showing current plain English summary
-- Joanna converses with the AI to request changes
-- AI updates the summary draft in real time during conversation
-- "Update" saves revised task definition, form schema, and execution instructions to SQLite
-- Task view re-renders immediately with updated form
+- Cog opens refinement dialog
+- AI updates summary draft in real time
+- Update saves revised task to SQLite
+- Task view re-renders immediately
 
-**Exit criterion:** An existing task is successfully modified through the cog. Form updates correctly. Changes persist across app restarts.
-
----
-
-### Phase 6 — Safety Agent and Admin
-
-- Safety Agent running at all three trigger points (task definition, before Go, result display)
-- Safety Agent returns user-facing reason and internal reason on failure
-- Admin mode accessible via `Ctrl+Shift+A`
-- Admin page functional — AI provider selection, API key management, safety rule editing
-- User Safety Rules and Admin Safety Rules seeded in `documents` table
-- Correct rule set applied based on current app mode
-
-**Exit criterion:** A clearly unsafe task definition is blocked with a friendly reason shown to Joanna and internal reason logged. Admin page updates safety rules. Swapping AI provider in admin page changes the active provider immediately.
+**Exit criterion:** Task modified via cog. Changes persist across restarts.
 
 ---
 
-### Phase 7 — Polish and Non-Technical UX
+### Phase 6 — Local Tool and Agent Task Libraries
 
-Final layer — the app is functionally complete but needs to feel right for a non-technical user.
+- Tool gap detection working in Wizard
+- Wizard generates tool spec and code on gap
+- Admin task: Review Pending Tools — view, edit, approve
+- Approved tools immediately available
+- Draft task retry flow working
+- Agent tasks built via Wizard in admin mode
+- Agent tasks dynamically registered as tools before AI interactions
+- Depth limit enforced
 
-- Friendly plain English error messages throughout — no technical language visible to Joanna
+**Exit criterion:** Gap detected, tool approved, Draft task retried successfully. Agent task invoked by an AI agent during execution.
+
+---
+
+### Phase 7 — Safety Agent and Admin Mode
+
+- Safety Agent at all three trigger points
+- Correct safety rules applied by mode
+- Admin mode via `Ctrl+Shift+A`
+- Minimal admin UI: mode indicator + API key entry
+- All built-in admin tasks functional
+- Knowledge base tasks working (add, search, read)
+- Two-layer KB pattern: agent tasks + user wrapper tasks
+
+**Exit criterion:** Unsafe task blocked with friendly message. Admin mode switches correctly. All built-in admin tasks run. KB tasks add and retrieve notes from Obsidian vault.
+
+---
+
+### Phase 8 — Export and Import
+
+- Export Library admin task: entity selection, native save dialog, JSON output
+- Import Library admin task: file picker, agent-driven preview and conflict resolution
+- Import routing by `access_category` automatic
+- Dependency resolution: missing tool tasks imported as Draft
+- Version conflict handling: proceed/accept/cancel via follow-up input
+
+**Exit criterion:** Task and tool exported from one instance, imported into a clean instance. Version conflict resolved correctly. Missing-tool dependency flagged and task saved as Draft.
+
+---
+
+### Phase 9 — Polish and Non-Technical UX
+
+- Friendly plain English error messages throughout
 - Loading indicators and streamed progress on all AI calls
-- Complexity threshold triggers correctly during task definition
-- Last used dates displayed on task cards and task views
+- Event log writes confirmed non-blocking
+- Draft badges visible on cards and task views
 - Task summaries and field descriptions reviewed for clarity and tone
-- Windows Defender SmartScreen behaviour confirmed and documented for Joanna
+- Windows Defender SmartScreen behaviour confirmed
 - Full end-to-end test on Win10 target machine
 
-**Exit criterion:** Joanna can use the application without assistance. All error states produce friendly, actionable messages. App performs acceptably on the Win10 machine.
+**Exit criterion:** The app can be used without assistance. All error states produce friendly, actionable messages. Acceptable performance on Win10.
